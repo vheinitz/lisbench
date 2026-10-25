@@ -43,6 +43,18 @@ struct Timing {
     std::size_t max_text{max_text_size};  // accepted frame text on receive
 };
 
+// Short timeouts for tests against a device built with the same preset
+// (devsim: LISDEV_FAST_TEST). Not LIS01-A2; never against a real partner.
+[[nodiscard]] constexpr Timing fast_test_timing() noexcept {
+    Timing t;
+    t.reply_timeout = milliseconds{2'000};
+    t.receive_timeout = milliseconds{4'000};
+    t.busy_retry = milliseconds{1'000};
+    t.contention_instrument = milliseconds{200};
+    t.contention_computer = milliseconds{2'000};
+    return t;
+}
+
 using MessageId = std::uint64_t;
 using TimerId = std::uint64_t;
 

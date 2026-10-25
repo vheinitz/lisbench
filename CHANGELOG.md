@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fast test timing: `lisbench sim --fast-timing` and the Uno sketch built
+  with `LISDEV_FAST_TEST=1` use 1 s pauses and short timeouts (2 s reply,
+  4 s receive, 1 s busy). On the board: 15 messages in 20 s instead of one
+  per 30 s; NAK, ENQ-NAK and late-ACK cases in seconds. Not LIS01-A2.
+- Uno sketch: the pause counts from the end of the last transfer, not from
+  its start.
+
 - Serial ports: input that arrived before the port was opened is dropped
   (100 ms after opening, POSIX `tcflush` / Windows `PurgeComm`). An Arduino
   left running for half an hour had queued 54 ENQ/EOT pairs, which were

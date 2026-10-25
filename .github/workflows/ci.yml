@@ -74,4 +74,5 @@ jobs:
       - name: compile the instrument sketches
         run: |
           arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice devsim/LisDevice/examples/uno_analyzer
+          arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice --build-property "compiler.cpp.extra_flags=-DLISDEV_FAST_TEST=1" devsim/LisDevice/examples/uno_analyzer
           arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --library devsim/LisDevice devsim/LisDevice/examples/esp32_analyzer

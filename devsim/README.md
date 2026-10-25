@@ -12,7 +12,7 @@ Examples:
 
 | Sketch | Board | Link | Sends |
 |---|---|---|---|
-| `uno_analyzer` | Arduino Uno | USB serial, 9600 8N1 | glucose result every 30 s or on pin 2 |
+| `uno_analyzer` | Arduino Uno | USB serial, 9600 8N1 | glucose result 30 s after the last transfer, or on pin 2 |
 | `esp32_analyzer` | ESP32 | Wi-Fi, TCP client | TSH result every 30 s; prints what the LIS sends |
 
 ```console
@@ -20,6 +20,20 @@ arduino-cli compile --fqbn arduino:avr:uno --library devsim/LisDevice devsim/Lis
 arduino-cli upload  --fqbn arduino:avr:uno -p /dev/ttyACM0 devsim/LisDevice/examples/uno_analyzer
 lisbench sim --role computer --endpoint "serial:/dev/ttyACM0?baud=9600"
 ```
+
+For quick tests build the Uno sketch with short timing and run lisbench
+with the same preset: 1 s pause between messages, 2 s reply timeout, 4 s
+receive timeout, 1 s busy retry. Not LIS01-A2, so never against a real LIS.
+
+```console
+arduino-cli compile --fqbn arduino:avr:uno --library devsim/LisDevice \
+  --build-property "compiler.cpp.extra_flags=-DLISDEV_FAST_TEST=1" devsim/LisDevice/examples/uno_analyzer
+lisbench sim --role computer --endpoint "serial:/dev/ttyUSB0?baud=9600" --fast-timing --fault ack:3:delay:3000
+```
+
+(Arduino IDE: set `LISDEV_FAST_TEST` to 1 at the top of the sketch.) A
+fault case then takes seconds: NAK on the ENQ is retried after 1 s, a late
+ACK makes the sender give up after 2 s.
 
 Boards with an FTDI or CH340 USB chip (older Uno clones, Nano, Duemilanove)
 appear as `/dev/ttyUSB0` instead. Another program holding the port (a

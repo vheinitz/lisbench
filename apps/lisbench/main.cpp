@@ -255,6 +255,7 @@ struct SimFlags {
     bool serve{false};
     std::vector<std::string> faults;
     bool trace{false};
+    bool fast_timing{false};
 };
 
 // "ack:2:nak", "frame:every3:corrupt", "ack:all:delay:20000"
@@ -341,6 +342,14 @@ int cmd_sim(const SimFlags& flags) {
         }
     }
 
+    if (flags.fast_timing) {
+        // Keep the contention rule of the scenario, replace the durations.
+        const auto winner = scenario.timing.contention_winner;
+        scenario.timing = lis01::fast_test_timing();
+        scenario.timing.contention_winner = winner;
+        println("{} [sim] fast test timing: not LIS01-A2, only for devices built for it",
+                clock_now());
+    }
     auto trace = std::make_shared<TraceLines>();
     sim::Observers obs;
     obs.on_info = [](const std::string& text) { println("{} [sim] {}", clock_now(), text); };
@@ -448,6 +457,9 @@ int run(int argc, char** argv) {
     simulate->add_option("--fault", sim_flags.faults,
                          "on:which:do[:ms], e.g. ack:2:nak, frame:every3:corrupt");
     simulate->add_flag("--trace", sim_flags.trace, "Show every byte on the wire");
+    simulate->add_flag("--fast-timing", sim_flags.fast_timing,
+                       "Short timeouts (2 s reply, 4 s receive, 1 s busy) for tests against a "
+                       "device built with LISDEV_FAST_TEST; not LIS01-A2");
 
     cli::MonitorFlags mon;
     auto* monitor =

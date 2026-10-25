@@ -264,6 +264,18 @@ TEST_CASE("receiver: a repeated ENQ before the first frame is acknowledged again
     CHECK(all<ev::Warning>(ev).size() == 1);
 }
 
+TEST_CASE("fast test timing shortens the waits, keeps the rules") {
+    constexpr auto fast = fast_test_timing();
+    STATIC_REQUIRE(fast.reply_timeout < Timing{}.reply_timeout);
+    CHECK(fast.max_frame_attempts == Timing{}.max_frame_attempts);
+    CHECK(fast.contention_winner == Role::instrument);
+    Link link{Role::instrument, fast};
+    Events ev;
+    (void)link.submit(message_of({"H|\\^&", "L|1|N"}), ev);
+    REQUIRE(all<ev::ArmTimer>(ev).size() == 1);
+    CHECK(all<ev::ArmTimer>(ev)[0].after == 2s);
+}
+
 TEST_CASE("sender: ENQ answered with NAK is retried after busy_retry") {
     Link link{Role::instrument};
     Events ev;
