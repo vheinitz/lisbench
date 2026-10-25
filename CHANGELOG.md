@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.2 – 2026-10-25
+
+First run on hardware: Uno-compatible board (ATmega328P, FTDI) with the
+`uno_analyzer` sketch against `lisbench sim --role computer` at 9600 baud.
+Normal transfers, NAK on frames (repeated, duplicates dropped), NAK on the
+ENQ (retry after 10 s) and a late ACK (sender aborts after 15 s, resends the
+same sample) all behaved as LIS01-A2 requires. Found and fixed:
+
+- Link: an ENQ arriving before the first frame of a transfer is answered
+  with ACK again (the sender missed our ACK). Before, it was dropped as
+  unexpected and the transfer failed after 15 s.
+- `sim`: a transfer ended by EOT without L record is shown as INCOMPLETE,
+  an empty one as `empty, no frames`.
+- `sim --trace`: received bytes are grouped into one line per frame or
+  control character; at 9600 baud they arrived as one line per byte.
+
 ## 0.6.1 – 2026-10-25
 
 - First instrument profile: `docs/devices/cepheid-genexpert/` (README,
@@ -11,8 +27,8 @@
   longer an "unknown escape".
 - Link: `Timing::contention_winner` (scenario `timing: {contention_winner:
   computer}`) for instruments that yield to the LIS on contention.
-- Monitor: ENQ, ACK, EOT without frames is reported as `empty transfer (link
-  check)` instead of an incomplete transfer.
+- Monitor: ENQ, ACK, EOT without frames is reported as `empty transfer, no
+  frames` instead of an incomplete transfer.
 - Tests: examples and scenarios under `docs/devices` are parsed, validated
   and loaded in CI.
 

@@ -108,7 +108,7 @@ TEST_CASE("monitor: ENQ, ACK, EOT is a link check, not an aborted transfer") {
     const auto transfer =
         std::ranges::find_if(ev, [](const Event& e) { return e.kind == Kind::transfer; });
     REQUIRE(transfer != ev.end());
-    CHECK(transfer->text == "empty transfer (link check)");
+    CHECK(transfer->text == "empty transfer, no frames");
 }
 
 TEST_CASE("capture lines round-trip") {

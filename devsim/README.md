@@ -21,11 +21,19 @@ arduino-cli upload  --fqbn arduino:avr:uno -p /dev/ttyACM0 devsim/LisDevice/exam
 lisbench sim --role computer --endpoint "serial:/dev/ttyACM0?baud=9600"
 ```
 
+Boards with an FTDI or CH340 USB chip (older Uno clones, Nano, Duemilanove)
+appear as `/dev/ttyUSB0` instead. Another program holding the port (a
+terminal, a serial plotter) makes uploads fail or hang; `fuser -v
+/dev/ttyUSB0` shows who has it open.
+
 For the ESP32 copy `config.example.h` to `config.h` and enter Wi-Fi and LIS
 address (config.h is not committed), then run
 `lisbench sim --role computer --endpoint tcp-listen://:15000 --serve`.
 
 Limits: records up to 256 bytes (`LISDEV_RECORD_MAX`); a longer record makes
 `start()` refuse the message instead of cutting it. Tested on the PC and
-compiled for both boards in CI; not yet run on hardware by the author of
-this file.
+compiled for both boards in CI. `uno_analyzer` ran on an Uno-compatible
+board (ATmega328P with FTDI USB) on 2026-10-25 against `lisbench sim`:
+normal transfers, injected NAKs on frames and on the ENQ, and a late ACK
+(abort after 15 s, same sample sent again) behaved as LIS01-A2 requires.
+The ESP32 sketch has not run on hardware yet.

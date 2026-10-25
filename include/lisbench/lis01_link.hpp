@@ -175,6 +175,7 @@ private:
     bytes frame_buf_{};
     std::optional<std::size_t> terminator_at_{};
     std::uint8_t expected_fn_{1};
+    bool got_frame_{false};  // since the ENQ that started this transfer
     bytes record_buf_{};
 };
 

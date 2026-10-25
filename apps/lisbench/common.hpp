@@ -75,10 +75,12 @@ struct TextFlags {
     }
 };
 
+inline std::string clock_at(std::chrono::system_clock::time_point t) {
+    return std::format("{:%T}", std::chrono::floor<std::chrono::milliseconds>(t));
+}
+
 inline std::string clock_now() {
-    const auto now =
-        std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now());
-    return std::format("{:%T}", now);
+    return clock_at(std::chrono::system_clock::now());
 }
 
 }  // namespace lisbench::cli

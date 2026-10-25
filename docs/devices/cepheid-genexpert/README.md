@@ -71,8 +71,8 @@ a patient ID alone goes out as a query for all (§1.9.4).
    instrument; it finishes the message, then waits 15 s before the next ENQ
    (§3.2.3.1).
 3. **Link check:** ENQ, any of ACK/NAK/ENQ within 15 s, then EOT with no
-   frames (§3.2.6.1). `lisbench monitor` shows it as `empty transfer (link
-   check)`, not as an aborted transfer.
+   frames (§3.2.6.1). `lisbench monitor` shows it as `empty transfer, no
+   frames`, not as an aborted transfer.
 4. **One query at a time; 60 s.** An unanswered query is cancelled after 60 s
    (Q field 13 `A` with a comment) and counts as "no orders". Always answer,
    also with `H` + `L|1|I` when there is nothing (§6.3.1.2, §6.3.1.4).

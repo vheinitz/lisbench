@@ -14,8 +14,11 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <memory>
+#include <optional>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "cmd_map.hpp"
@@ -32,7 +35,50 @@
 namespace {
 
 using namespace lisbench;
+using cli::clock_at;
 using cli::clock_now;
+
+// --trace: a serial port delivers a frame a few bytes at a time. Received
+// bytes are collected into one line per frame (STX .. LF) or control
+// character, stamped with the time of the first byte.
+class TraceLines {
+public:
+    void on_wire(const io::WireEvent& w) {
+        if (w.direction == io::Direction::out) {
+            flush();
+            print(w.at, "->", w.data, w.fault);
+            return;
+        }
+        for (const auto b : w.data) {
+            if (pending_.empty()) {
+                first_ = w.at;
+            }
+            pending_.push_back(b);
+            if (pending_.front() != lis01::ctl::stx || b == lis01::ctl::lf) {
+                flush();
+            }
+        }
+    }
+
+    void flush() {
+        if (!pending_.empty()) {
+            print(first_, "<-", pending_, std::nullopt);
+            pending_.clear();
+        }
+    }
+
+private:
+    static void print(std::chrono::system_clock::time_point at, std::string_view arrow,
+                      const bytes& data, const std::optional<io::Fault>& fault) {
+        cli::println("{} {} {}{}", clock_at(at), arrow, printable(data),
+                     fault ? std::format("   [fault: {} {}]", io::to_string(fault->target),
+                                         io::to_string(fault->action))
+                           : "");
+    }
+
+    bytes pending_{};
+    std::chrono::system_clock::time_point first_{};
+};
 using cli::println;
 using cli::read_input;
 using cli::TextFlags;
@@ -295,30 +341,36 @@ int cmd_sim(const SimFlags& flags) {
         }
     }
 
+    auto trace = std::make_shared<TraceLines>();
     sim::Observers obs;
     obs.on_info = [](const std::string& text) { println("{} [sim] {}", clock_now(), text); };
     obs.on_step = [](const sim::StepReport& r) {
         println("{} [step {}] {}: {}", clock_now(), r.index + 1, r.ok ? "ok" : "FAILED", r.text);
     };
-    obs.session.on_warning = [](const std::string& text) {
+    obs.session.on_warning = [trace](const std::string& text) {
+        trace->flush();
         println("{} [warn] {}", clock_now(), text);
     };
-    obs.session.on_transfer = [](const io::Transfer& t) {
-        println("{} [recv] transfer {} ({} records{})", clock_now(),
-                t.complete ? "complete" : "INCOMPLETE", t.records.size(),
-                t.complete ? "" : ", " + t.reason);
+    obs.session.on_transfer = [trace](const io::Transfer& t) {
+        trace->flush();
+        // EOT also ends an aborted transfer; only the L record shows the message is whole.
+        const bool has_l = !t.records.empty() && !t.records.back().empty() &&
+                           t.records.back().front() == std::byte{'L'};
+        std::string status = "complete";
+        if (!t.complete) {
+            status = "INCOMPLETE, " + t.reason;
+        } else if (t.records.empty()) {
+            status = "empty, no frames";
+        } else if (!has_l) {
+            status = "INCOMPLETE, no L record";
+        }
+        println("{} [recv] transfer {} records: {}", clock_now(), t.records.size(), status);
         for (const auto& r : t.records) {
             println("         {}", printable(r));
         }
     };
     if (flags.trace) {
-        obs.session.on_wire = [](const io::WireEvent& w) {
-            println("{} {} {}{}", clock_now(), w.direction == io::Direction::in ? "<-" : "->",
-                    printable(w.data),
-                    w.fault ? std::format("   [fault: {} {}]", io::to_string(w.fault->target),
-                                          io::to_string(w.fault->action))
-                            : "");
-        };
+        obs.session.on_wire = [trace](const io::WireEvent& w) { trace->on_wire(w); };
     }
 
     asio::io_context io;

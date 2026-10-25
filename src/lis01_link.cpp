@@ -157,6 +157,7 @@ void Link::on_byte(std::byte b, Events& out) {
                 send(ctl::ack, out);
                 state_ = State::receiving;
                 expected_fn_ = 1;
+                got_frame_ = false;
                 arm(timing_.receive_timeout, out);
                 return;
             }
@@ -234,6 +235,10 @@ void Link::on_byte_receiving(std::byte b, Events& out) {
         } else if (b == ctl::eot) {
             end_receive(true, "EOT", out);
             kick(out);
+        } else if (b == ctl::enq && !got_frame_) {
+            // The sender did not see our ACK and starts again.
+            send(ctl::ack, out);
+            arm(timing_.receive_timeout, out);
         } else {
             out.emplace_back(ev::Warning{std::format("unexpected byte 0x{:02X} between frames",
                                                      std::to_integer<unsigned>(b))});
@@ -294,6 +299,7 @@ void Link::on_frame(Events& out) {
     }
 
     send(ctl::ack, out);
+    got_frame_ = true;
     expected_fn_ = next_frame_number(expected_fn_);
     record_buf_.insert(record_buf_.end(), frame.text.begin(), frame.text.end());
     if (frame.last) {

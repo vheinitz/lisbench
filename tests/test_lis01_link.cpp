@@ -238,6 +238,32 @@ TEST_CASE("contention: the computer goes first when both agree it wins") {
     }
 }
 
+TEST_CASE("receiver: a repeated ENQ before the first frame is acknowledged again") {
+    // The sender did not get our ACK (lost, or turned into NAK on the way)
+    // and asks again; found against an Arduino with a NAK injected on the ENQ reply.
+    Link link{Role::computer};
+    Events ev;
+    feed(link, ctl::enq, ev);
+    CHECK(sent(ev) == bytes{ctl::ack});
+    ev.clear();
+    feed(link, ctl::enq, ev);
+    CHECK(sent(ev) == bytes{ctl::ack});
+    CHECK(all<ev::Warning>(ev).empty());
+    CHECK(link.state() == State::receiving);
+    REQUIRE(all<ev::ArmTimer>(ev).size() == 1);  // receive timeout starts again
+
+    // After the first frame, ENQ is a protocol error and is not acknowledged.
+    ev.clear();
+    for (const auto& f : frames_for(message_of({"H|\\^&", "L|1|N"}))) {
+        const auto raw = encode(f);
+        link.on_bytes(raw, ev);
+    }
+    ev.clear();
+    feed(link, ctl::enq, ev);
+    CHECK(sent(ev).empty());
+    CHECK(all<ev::Warning>(ev).size() == 1);
+}
+
 TEST_CASE("sender: ENQ answered with NAK is retried after busy_retry") {
     Link link{Role::instrument};
     Events ev;
