@@ -46,7 +46,8 @@ jobs:
       - run: clang-format --dry-run --Werror src/*.cpp include/lisbench/*.hpp apps/lisbench/*.cpp tests/*.cpp fuzz/*.cpp
       - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: cmake --build build --target lisbench
-      - run: clang-tidy -p build src/*.cpp apps/lisbench/main.cpp
+      # The database comes from GCC; its GCC-only warning flags are unknown to clang.
+      - run: clang-tidy -p build --extra-arg=-Wno-unknown-warning-option src/*.cpp apps/lisbench/main.cpp
 
   fuzz:
     runs-on: ubuntu-24.04

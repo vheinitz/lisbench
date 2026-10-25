@@ -109,7 +109,8 @@ std::expected<Delimiters, CodecError> delimiters_from_header(std::string_view re
 }
 
 std::string_view transliteration(char32_t cp) noexcept {
-    const auto* const it =
+    // NOLINTNEXTLINE(readability-qualified-auto): not a pointer with every standard library
+    const auto it =
         std::ranges::find(transliterations, cp, &std::pair<char32_t, std::string_view>::first);
     return it == transliterations.end() ? std::string_view{} : it->second;
 }
