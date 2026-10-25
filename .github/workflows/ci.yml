@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: gcc-13, os: ubuntu-24.04, cxx: g++-13 }
+          - { name: gcc-14, os: ubuntu-24.04, cxx: g++-14 }
+          - { name: clang-18, os: ubuntu-24.04, cxx: clang++-18 }
+          - { name: msvc, os: windows-2022, cxx: cl }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++-14 -DLISBENCH_SANITIZE=address,undefined
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
+        env:
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install clang-tidy==19.1.0 clang-format==19.1.0
+      - run: clang-format --dry-run --Werror src/*.cpp include/lisbench/*.hpp apps/lisbench/*.cpp tests/*.cpp fuzz/*.cpp
+      - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - run: cmake --build build --target lisbench
+      - run: clang-tidy -p build src/*.cpp apps/lisbench/main.cpp
+
+  fuzz:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-18 -DLISBENCH_BUILD_TESTS=OFF -DLISBENCH_BUILD_FUZZERS=ON
+      - run: cmake --build build
+      - name: run each fuzzer for 60 s
+        run: |
+          for f in fuzz_deframe fuzz_lis02_parse fuzz_link; do
+            mkdir -p corpus/$f
+            ./build/fuzz/$f -max_total_time=60 -max_len=4096 corpus/$f
+          done

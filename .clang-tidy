@@ -1,0 +1,28 @@
+# Plan rule 8: modern C++ is mandatory. Exceptions are justified one by one
+# in the code (NOLINT with reason) or here.
+Checks: >
+  bugprone-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -readability-braces-around-statements
+# avoid-magic-numbers: protocol constants (0x7E, 240, ...) are clearer inline
+#   next to their comment than behind a name.
+# pro-bounds-constant-array-index: spans are indexed after explicit checks.
+# identifier-length: i, b, c, d are idiomatic in byte loops.
+# cognitive-complexity: the link state machine is a deliberate switch.
+# trailing-return-type: style choice, not modernization.
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'include/lisbench/.*'
+CheckOptions:
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: true
