@@ -7,7 +7,7 @@
   come from `docs/devices/<id>/profile.yaml` (search path `$LISBENCH_DEVICES`,
   then the source tree). Options given on the command line win.
 
-## 0.6.3 – 2026-10-25
+## 0.6.3 – 2026-10-25 (not tagged; released with 0.6.4)
 
 - `monitor --trigger "WATCH => ACTION"`: `exec CMD` runs a command with the
   hit in `LISBENCH_WATCH`, `LISBENCH_VALUE`, `LISBENCH_RECORD`,
