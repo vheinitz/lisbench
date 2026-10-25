@@ -79,12 +79,22 @@ features.md §5:
 | 7 | `${now}` is 14 digits local time |
 | 8, 9 | checked with the CLI by hand: pattern without `{unique}` rejected before start, temp + rename, on_success after delivery, on_failure with the error text when the LIS is unreachable |
 
-## 7. Later releases
+## 7. Instrument on a microcontroller (v0.6)
 
-- v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32
-  simulator ↔ monitor on a Raspberry Pi.
+`devsim/LisDevice` against `lis01::Link` (role computer) on a simulated wire
+and clock (test_devsim.cpp): delivery with a two-frame record; a record above
+`LISDEV_RECORD_MAX` is refused before anything is sent; one corrupted frame
+is repeated; six refusals end with rejected; no answer gives timeout after
+15 s; transfer from the LIS received record by record, including a
+multi-frame record; contention: the instrument goes first, the LIS's
+message follows. CI compiles both sketches with all warnings.
 
-## 8. Tooling in CI
+## 8. Later releases
+
+- hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32 simulator
+  ↔ monitor on a Raspberry Pi, 24 h.
+
+## 9. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

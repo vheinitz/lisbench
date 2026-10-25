@@ -62,3 +62,16 @@ jobs:
             mkdir -p corpus/$f
             ./build/fuzz/$f -max_total_time=60 -max_len=4096 corpus/$f
           done
+
+  arduino:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr esp32:esp32
+      - name: compile the instrument sketches
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice devsim/LisDevice/examples/uno_analyzer
+          arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --library devsim/LisDevice devsim/LisDevice/examples/esp32_analyzer

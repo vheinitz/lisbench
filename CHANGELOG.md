@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 – 2026-10-25
+
+- `devsim/LisDevice`: Arduino library, instrument side of LIS01-A2 in one
+  C++11 header without heap; sketches for Arduino Uno (serial) and ESP32
+  (Wi-Fi/TCP). Tested on the PC against the lisbench link; CI compiles both
+  sketches.
+- Roadmap: web UI moved to 0.7.
+
 ## 0.5.0 – 2026-10-25
 
 - `lisbench map`: messages from an SQLite database through a declarative

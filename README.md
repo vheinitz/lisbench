@@ -9,9 +9,9 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.5, protocol core, command line tool, simulator, monitor,
-bridges and database mapper.** Web UI and microcontroller simulators are
-planned; see [docs/spec/features.md](docs/spec/features.md).
+Status: **v0.6, protocol core, command line tool, simulator, monitor,
+bridges, database mapper and instrument simulators for Arduino/ESP32.** A
+web UI is planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now
@@ -45,6 +45,9 @@ A spare-time project.
   queries with their own scopes, bound parameters, escaping of every value,
   records that do not fit the hierarchy are errors, write-back after
   sending, output to TCP, serial or files. See [examples/mapper/](examples/mapper/).
+- Instruments on microcontrollers: an Arduino library and sketches for an
+  Uno (USB serial) and an ESP32 (Wi-Fi) that send results to a LIS. See
+  [devsim/](devsim/).
 
 ## Build
 

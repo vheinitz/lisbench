@@ -59,8 +59,8 @@ mapper and microcontroller simulators.
 | **v0.3** (done) | `monitor`: both directions with timestamps, decoded view, watches on fields (`R.value > 100`, `O.specimen_id == …`), capture file and replay, passive tap; Wireshark Lua dissector moved to later | replay of a recorded session gives identical decoded output |
 | **v0.4** (done) | `bridge`: serial↔TCP, TCP client↔server (role swap), reconnect in serve mode; `record`: serial or TCP → capture/raw file; tap mode is part of `monitor` | byte-transparent for 200 kB random data each way |
 | **v0.5** (done) | `mapper`: SQLite → messages by declarative YAML (nested queries with named scopes `${patient.pid}`, `${cfg.x}`/`${arg.x}` via lexer, bound parameters, `skip_if_empty`, write-back with bound parameters, stable message control ID); `lisbench map` to stdout, TCP/serial or files | mapper acceptance list, §5 |
-| v0.6 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
-| v0.7 | microcontroller instrument simulators: Arduino sketch (serial, AVR) and ESP32 (Wi-Fi/TCP) playing an analyzer as LIS client | sketch talks to the PC monitor for 24 h without error |
+| **v0.6** (done) | microcontroller instrument simulators: `LisDevice` library, Arduino Uno sketch (serial) and ESP32 sketch (Wi-Fi/TCP) playing an analyzer as LIS client; moved before the web UI because it lets everyone try the tools at once | host tests against the lisbench link; compiled for both boards in CI; 24 h on hardware still open |
+| v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; triggers that run actions on a watch hit; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
 WIP limit: no web UI before v0.3.
