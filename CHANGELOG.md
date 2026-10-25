@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.0 – 2026-10-25
+
+- `lisbench serve [--http 127.0.0.1:8080] [--captures DIR]`: web UI with
+  four views. Monitor: endpoints, watches, profile, save; live table with
+  record fields on click and watch hits marked. Captures: list and replay.
+  Conformance: run the suite, live progress, verdict table, JSON download.
+  Simulator: role, endpoint, message files, query answers, faults.
+- Own small HTTP/1.1 server on the existing asio (decision of the
+  requester): commands as POST with JSON, live data as Server-Sent Events,
+  pages compiled into the binary (one file for the Pi). Limits on head, body
+  and event streams; a slow event reader is dropped. Listens on 127.0.0.1
+  by default and warns when it does not. Files only by plain name from the
+  data directory; no command triggers from the browser.
+- Watch expressions: `<`, `>`, `<=`, `>=` against a number no longer match a
+  value that is not a number (`R.value > 100` hit "DETECTED^" as text; found
+  in the web UI with GeneXpert-style values). Use `R.value.2` for a number in
+  a component.
+- `io::parse_fault` (the `on:which:do[:ms]` form) moved from the command
+  line into the library, shared by `sim` and the web UI.
+
 ## 0.6.6 – 2026-10-25
 
 - Receivers refuse a frame with a restricted character in its text (SOH to

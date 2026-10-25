@@ -165,6 +165,10 @@ bool matches(const Expression& e, const lis02::Record& r, const lis02::Delimiter
     }
     const auto a = to_number(actual);
     const auto b = to_number(e.value);
+    const bool ordering = e.op == Op::lt || e.op == Op::gt || e.op == Op::le || e.op == Op::ge;
+    if (ordering && b && !a) {
+        return false;  // "DETECTED" > 100 is not a hit, whatever the text order says
+    }
     const auto cmp = [&]() -> std::partial_ordering {
         if (a && b) {
             return *a <=> *b;

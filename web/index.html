@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lisbench</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>lisbench</h1>
+  <nav>
+    <button data-view="monitor" class="active">Monitor</button>
+    <button data-view="captures">Captures</button>
+    <button data-view="conform">Conformance</button>
+    <button data-view="sim">Simulator</button>
+  </nav>
+  <span id="link" class="pill off" title="Live connection to the lisbench daemon">offline</span>
+</header>
+
+<main>
+<section id="view-monitor" class="view">
+  <form id="monitor-form" class="panel">
+    <label>Side A <input name="a" required placeholder="tcp-listen://:15000 or serial:/dev/ttyUSB0?baud=9600"></label>
+    <label>Side B <input name="b" required placeholder="tcp://lis-host:5000"></label>
+    <label>Labels <input name="labels" value="instrument,lis"></label>
+    <label>Profile <input name="profile" placeholder="e.g. cepheid-genexpert"></label>
+    <label class="wide">Watches, one per line <textarea name="watches" rows="2" placeholder="R.value > 100"></textarea></label>
+    <label>Save as <input name="save" placeholder="capture name (optional)"></label>
+    <label class="check"><input type="checkbox" name="tap"> passive tap (do not forward)</label>
+    <div class="actions">
+      <button type="submit" id="monitor-start">Start</button>
+      <button type="button" id="monitor-stop" disabled>Stop</button>
+      <span id="monitor-state" class="muted"></span>
+    </div>
+  </form>
+  <div class="toolbar">
+    <label class="check"><input type="checkbox" id="monitor-handshake"> show ENQ/ACK/EOT and frames</label>
+    <label class="check"><input type="checkbox" id="monitor-follow" checked> follow</label>
+    <button type="button" id="monitor-clear">Clear</button>
+  </div>
+  <div id="monitor-table" class="events"></div>
+  <pre id="monitor-summary" class="summary"></pre>
+</section>
+
+<section id="view-captures" class="view" hidden>
+  <div class="panel">
+    <div class="toolbar">
+      <label>Watch <input id="capture-watch" placeholder="R.value > 100"></label>
+      <label>Profile <input id="capture-profile" placeholder="optional"></label>
+      <button type="button" id="captures-refresh">Refresh</button>
+    </div>
+    <ul id="capture-list" class="files"></ul>
+  </div>
+  <h2 id="capture-title"></h2>
+  <div id="capture-table" class="events"></div>
+  <pre id="capture-summary" class="summary"></pre>
+</section>
+
+<section id="view-conform" class="view" hidden>
+  <form id="conform-form" class="panel">
+    <label>IUT role
+      <select name="iut"><option value="computer">LIS (computer system)</option><option value="instrument">Instrument</option></select>
+    </label>
+    <label>Endpoint <input name="endpoint" required placeholder="tcp://lis-host:5000"></label>
+    <label>Profile (PICS) <input name="profile" placeholder="optional"></label>
+    <label>Wait for IUT (s) <input name="wait" type="number" min="1" value="60"></label>
+    <label class="check"><input type="checkbox" name="fast"> fast test timing (not LIS01-A2)</label>
+    <fieldset class="wide"><legend>Test cases (none checked: all)</legend><div id="conform-cases" class="cases"></div></fieldset>
+    <div class="actions">
+      <button type="submit" id="conform-start">Run</button>
+      <button type="button" id="conform-stop" disabled>Stop</button>
+      <button type="button" id="conform-download" disabled>Download JSON</button>
+      <span id="conform-state" class="muted"></span>
+    </div>
+  </form>
+  <pre id="conform-log" class="log"></pre>
+  <table id="conform-results" class="results"></table>
+</section>
+
+<section id="view-sim" class="view" hidden>
+  <form id="sim-form" class="panel">
+    <label>Scenario <select name="scenario"><option value="">(none: use the fields below)</option></select></label>
+    <label>Role
+      <select name="role"><option value="computer">LIS (computer system)</option><option value="instrument">Instrument</option></select>
+    </label>
+    <label>Endpoint <input name="endpoint" placeholder="tcp-listen://:15000"></label>
+    <label>Send <select name="send" multiple size="3"></select></label>
+    <label>Answer queries with <select name="answer"><option value="">(none)</option></select></label>
+    <label class="wide">Faults, one per line <textarea name="faults" rows="2" placeholder="ack:2:nak"></textarea></label>
+    <label class="check"><input type="checkbox" name="serve"> serve (accept again after a close)</label>
+    <label class="check"><input type="checkbox" name="fast"> fast test timing</label>
+    <div class="actions">
+      <button type="submit" id="sim-start">Start</button>
+      <button type="button" id="sim-stop" disabled>Stop</button>
+      <span id="sim-state" class="muted"></span>
+    </div>
+  </form>
+  <div id="sim-log" class="events"></div>
+</section>
+</main>
+
+<div id="toast" role="status" hidden></div>
+<footer><span id="version"></span> · files in <span id="data-dir"></span> · a hobby project, not for clinical use</footer>
+<script src="/app.js"></script>
+</body>
+</html>

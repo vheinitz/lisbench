@@ -9,7 +9,8 @@
 //   R.abnormal_flags matches "^(H|HH)$"
 //
 // Operators: == != < > <= >= contains matches. Values may be quoted. If both
-// sides are numbers they are compared as numbers, otherwise as text. Without
+// sides are numbers they are compared as numbers, otherwise as text; but
+// < > <= >= against a number never match a value that is not a number. Without
 // a component the whole field is used, components joined by the component
 // delimiter.
 

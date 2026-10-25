@@ -66,7 +66,8 @@ mapper and microcontroller simulators.
 | v0.6.4 (done) | `--profile <id>` for decode, validate, monitor and sim: text options, frame length and contention rule from `profile.yaml` (U8, first part) | profile tests; GeneXpert example decoded with `\Z` escapes by profile alone |
 | v0.6.5 (done) | `lisbench conform`: LIS01-A2 conformance test suite, 14 test cases (section 7) | own LIS, own instrument and LisDevice pass all cases; a receiver that acknowledges everything fails TR02/TR03 |
 | v0.6.6 (done) | receivers refuse restricted characters in frame text (link and LisDevice) | conform TR07 without note for all own implementations |
-| v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
+| **v0.7.0** (done) | web UI (`lisbench serve`, section 8): monitor, captures, conformance test, simulator; own HTTP/SSE server on asio, pages built into the binary | HTTP parser and limits unit-tested; API end to end (monitor between simulators, capture, conformance, simulator, bad file names, double start); checked in Chrome |
+| v0.7.x | package for Raspberry Pi 3B+ (Debian 13), library export (`find_package`), release binaries | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
 WIP limit: no web UI before v0.3.
@@ -149,3 +150,40 @@ Traffic the IUT starts between cases is received and acknowledged normally.
 
 Not in this suite (not observable on the link alone): duplicate suppression
 in the IUT's application, the receiver's 30 s timeout, LIS02-A2 content.
+
+## 8. Web UI (v0.7)
+
+Added 2026-10-25. Decisions of the requester: HTTP base "Eigener kleiner
+Server" (own small server on the existing asio, not Crow or cpp-httplib);
+scope "Live-Monitor, Mitschnitte abspielen, Konformitätstest, Simulator
+steuern".
+
+`lisbench serve [--http 127.0.0.1:8080] [--captures DIR]` runs one daemon
+with one event loop: the HTTP server, the monitor, the simulator and the
+conformance tester share it, so no state crosses threads.
+
+- Transport: HTTP/1.1. The browser sends commands as `POST /api/...` with
+  JSON; live data comes as Server-Sent Events from `GET /api/events`
+  (one-way is all the views need, and it needs no WebSocket handshake).
+- Assets (HTML, CSS, script) are compiled into the binary, so the Pi
+  package is one file. The script is plain JavaScript checked by the
+  TypeScript compiler (`// @ts-check`, `tsc --noEmit` in CI): type checking
+  without a build step for users.
+- Security: listens on 127.0.0.1 unless told otherwise; another address
+  prints a warning that anyone on that network can start connections from
+  this machine. No authentication in v0.7.
+- Limits: request line and headers 8 kB, body 1 MB, at most 16 event
+  streams; a slow event reader is dropped instead of buffering without
+  bound.
+
+| View | What it does |
+|---|---|
+| Monitor | endpoints A and B (or tap), watches; live table of records and handshake, record fields on click, watch hits highlighted; start/stop, save to a capture in `--captures` |
+| Captures | list of capture files in `--captures`; open one: the same table, marks shown |
+| Conformance | IUT role, endpoint, fast timing, profile; progress live, report table, JSON download |
+| Simulator | role, endpoint, message file or scenario from `--captures`/examples, faults; start/stop, transfers live |
+
+Acceptance: HTTP parser and limits unit-tested; the API driven end-to-end
+from a test (monitor between two simulators, conformance against the own
+LIS, capture listing); runs on a Raspberry Pi 3B+ (Debian 13), reachable on
+the LAN.

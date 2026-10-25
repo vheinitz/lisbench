@@ -9,10 +9,11 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.6, protocol core, command line tool, simulator, monitor,
+Status: **v0.7, protocol core, command line tool, simulator, monitor,
 bridges, database mapper and instrument simulators for Arduino/ESP32;
 first instrument profile ([Cepheid GeneXpert](docs/devices/cepheid-genexpert/README.md),
-from the public specification).** A web UI is planned; see [docs/spec/features.md](docs/spec/features.md).
+from the public specification); conformance test suite; web UI.** The
+Raspberry Pi package is next; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now
@@ -47,6 +48,9 @@ A spare-time project.
   receiver interrupt, frame format), each with a verdict pass / fail /
   inconclusive; an instrument profile serves as PICS. Terms after
   ISO/IEC 9646.
+- Web UI (`lisbench serve`): monitor, captures, conformance test and
+  simulator in the browser, live; one binary with the pages built in, made
+  for a Raspberry Pi next to the instrument.
 - Bridges without decoding: serial ↔ TCP, TCP client ↔ server (role swap),
   and recording of one endpoint to a capture or raw file.
 - Mapper from an SQLite database to messages, described in YAML: nested
@@ -82,6 +86,7 @@ lisbench sim --endpoint URI ...     the same from options (--send, --receive,
 lisbench monitor --a URI --b URI    pass traffic through and show it decoded
                                     (--watch, --trigger, --save, --decode, --verbose, --tap)
 lisbench monitor --replay FILE      the same for a saved capture
+lisbench serve [--http ADDR:PORT] [--captures DIR]   web UI (default 127.0.0.1:8080)
 lisbench conform --iut ROLE --endpoint URI   conformance test suite (--only, --profile, --json)
 lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
 lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)

@@ -54,3 +54,17 @@ TEST_CASE("watch expressions compare numbers as numbers, text as text") {
     CHECK_FALSE(hit("R.13 == x", r));           // missing field is empty
     CHECK(hit("R.13 == \"\"", r));
 }
+
+TEST_CASE("watch: an ordering against a number needs a number") {
+    // Seen in the web UI with GeneXpert-style values: "DETECTED^" > "100" as text.
+    CHECK_FALSE(hit("R.value > 100", "R|1|^^^FLU|DETECTED^"));
+    CHECK_FALSE(hit("R.value > 100", "R|1|^^^FLU|^27.4"));  // a component holds the number
+    CHECK_FALSE(hit("R.value >= 0", "R|1|^^^ANA|1:320"));
+    CHECK_FALSE(hit("R.value < 100", "R|1|^^^GLU|"));  // empty is no number either
+    CHECK(hit("R.value.2 > 20", "R|1|^^^FLU|^27.4"));
+    CHECK(hit("R.value > -1", "R|1|^^^GLU|-0.5"));
+    // Text ordering stays available when the right side is not a number.
+    CHECK(hit("R.units > a", "R|1|^^^GLU|1|mg/dL"));
+    // Equality keeps comparing text when one side is not a number.
+    CHECK(hit("R.value != 100", "R|1|^^^FLU|DETECTED^"));
+}

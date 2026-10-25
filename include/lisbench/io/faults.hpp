@@ -12,6 +12,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <expected>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,6 +39,10 @@ struct Fault {
 [[nodiscard]] std::optional<FaultAction> fault_action(std::string_view name) noexcept;
 [[nodiscard]] std::string_view to_string(FaultTarget t) noexcept;
 [[nodiscard]] std::string_view to_string(FaultAction a) noexcept;
+
+// Command-line form "on:which:do[:ms]": "ack:2:nak", "frame:every3:corrupt",
+// "ack:all:delay:20000".
+[[nodiscard]] std::expected<Fault, std::string> parse_fault(std::string_view spec);
 
 struct Outgoing {
     bytes data{};

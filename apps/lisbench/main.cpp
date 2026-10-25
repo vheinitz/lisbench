@@ -24,6 +24,7 @@
 #include "cmd_conform.hpp"
 #include "cmd_map.hpp"
 #include "cmd_monitor.hpp"
+#include "cmd_serve.hpp"
 #include "common.hpp"
 #include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis01_frame.hpp"
@@ -260,36 +261,6 @@ struct SimFlags {
     std::string profile;
 };
 
-// "ack:2:nak", "frame:every3:corrupt", "ack:all:delay:20000"
-std::expected<io::Fault, std::string> parse_fault(const std::string& spec) {
-    std::vector<std::string> parts;
-    for (auto p : spec | std::views::split(':')) {
-        parts.emplace_back(p.begin(), p.end());
-    }
-    if (parts.size() < 3) {
-        return std::unexpected(std::format("fault '{}': expected on:which:do[:ms]", spec));
-    }
-    const auto target = io::fault_target(parts[0]);
-    const auto action = io::fault_action(parts[2]);
-    if (!target || !action) {
-        return std::unexpected(std::format("fault '{}': unknown target or action", spec));
-    }
-    io::Fault f{.target = *target, .action = *action};
-    try {
-        if (parts[1].starts_with("every")) {
-            f.every = std::stoul(parts[1].substr(5));
-        } else if (parts[1] != "all") {
-            f.nth = std::stoul(parts[1]);
-        }
-        if (f.action == io::FaultAction::delay) {
-            f.delay = std::chrono::milliseconds{parts.size() > 3 ? std::stol(parts[3]) : 20'000};
-        }
-    } catch (const std::exception&) {
-        return std::unexpected(std::format("fault '{}': bad number", spec));
-    }
-    return f;
-}
-
 int cmd_sim(const SimFlags& flags) {
     sim::Scenario scenario;
     if (!flags.scenario.empty()) {
@@ -335,7 +306,7 @@ int cmd_sim(const SimFlags& flags) {
             scenario.answer_queries = std::move(*records);
         }
         for (const auto& spec : flags.faults) {
-            auto f = parse_fault(spec);
+            auto f = io::parse_fault(spec);
             if (!f) {
                 println(stderr, "sim: {}", f.error());
                 return 2;
@@ -550,6 +521,14 @@ int run(int argc, char** argv) {
         ->capture_default_str();
     conform->add_option("--json", conform_flags.json, "Also write the results as JSON");
 
+    cli::ServeFlags serve_flags;
+    auto* serve =
+        app.add_subcommand("serve", "Web UI: monitor, captures, conformance test, simulator");
+    serve->add_option("--http", serve_flags.http, "Address and port to listen on")
+        ->capture_default_str();
+    serve->add_option("--captures", serve_flags.captures,
+                      "Directory for captures, message files (.astm) and scenarios (.yaml)");
+
     CLI11_PARSE(app, argc, argv);
     for (auto* t : {&text, &mon.text}) {
         if (auto r = t->resolve(); !r) {
@@ -578,6 +557,9 @@ int run(int argc, char** argv) {
         }
         if (*conform) {
             return cli::cmd_conform(conform_flags);
+        }
+        if (*serve) {
+            return cli::cmd_serve(serve_flags);
         }
         if (*bridge) {
             return cli::cmd_bridge(bridge_flags);

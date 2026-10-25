@@ -2,7 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <format>
+#include <ranges>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "lisbench/lis01_frame.hpp"
 
@@ -98,6 +102,35 @@ std::optional<Outgoing> FaultFilter::apply(bytes data) {
         case FaultAction::delay: out.delay = it->delay; break;
     }
     return out;
+}
+
+std::expected<Fault, std::string> parse_fault(std::string_view spec) {
+    std::vector<std::string> parts;
+    for (auto p : spec | std::views::split(':')) {
+        parts.emplace_back(p.begin(), p.end());
+    }
+    if (parts.size() < 3) {
+        return std::unexpected(std::format("fault '{}': expected on:which:do[:ms]", spec));
+    }
+    const auto target = fault_target(parts[0]);
+    const auto action = fault_action(parts[2]);
+    if (!target || !action) {
+        return std::unexpected(std::format("fault '{}': unknown target or action", spec));
+    }
+    Fault f{.target = *target, .action = *action};
+    try {
+        if (parts[1].starts_with("every")) {
+            f.every = std::stoul(parts[1].substr(5));
+        } else if (parts[1] != "all") {
+            f.nth = std::stoul(parts[1]);
+        }
+        if (f.action == FaultAction::delay) {
+            f.delay = std::chrono::milliseconds{parts.size() > 3 ? std::stol(parts[3]) : 20'000};
+        }
+    } catch (const std::exception&) {
+        return std::unexpected(std::format("fault '{}': bad number", spec));
+    }
+    return f;
 }
 
 }  // namespace lisbench::io

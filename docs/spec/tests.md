@@ -99,12 +99,24 @@ receiver that acknowledges every frame must fail TR02 and TR03, get only a
 note for TR07 (a "should") and leave the TS cases inconclusive. Verdict
 helpers (95 % rule, upper bound) and the report format are tested directly.
 
-## 9. Later releases
+## 9. Web UI (v0.7.0)
+
+test_web.cpp: request parser fed byte by byte; malformed requests and limits
+give 400/413/431/501; responses and SSE framing; the server over real sockets
+(routes, files, 404/405/500/400, two event streams both receiving one event).
+test_webapp.cpp drives the API as the browser does, with live events: a
+monitor between an instrument simulator and a LIS with a watch and a saved
+capture; the capture listed and replayed; a conformance run against the LIS;
+`../` in file names, non-object bodies, bad watches and a second start are
+refused. The script is type-checked by `tsc --strict` in CI. Manually in
+Chrome: conformance (14 pass), monitor with watch, capture view.
+
+## 10. Later releases
 
 - hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32 simulator
   ↔ monitor on a Raspberry Pi, 24 h.
 
-## 10. Tooling in CI
+## 11. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,
