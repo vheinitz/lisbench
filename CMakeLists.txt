@@ -16,6 +16,9 @@ include(cmake/deps.cmake)
 add_library(lisbench_warnings INTERFACE)
 if(MSVC)
   target_compile_options(lisbench_warnings INTERFACE /W4 /permissive- /utf-8 $<$<BOOL:${LISBENCH_WERROR}>:/WX>)
+  # C4996 marks standard getenv/strerror as "unsafe" in favour of the
+  # Microsoft-only _s variants; the code stays with the standard functions.
+  target_compile_definitions(lisbench_warnings INTERFACE _CRT_SECURE_NO_WARNINGS)
 else()
   target_compile_options(lisbench_warnings INTERFACE
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow
