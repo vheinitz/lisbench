@@ -477,8 +477,10 @@ public:
             co_return;
         }
         activity(false);
-        book_.delivered(out);
-        changed();
+        if (!out.items.empty()) {  // "no order" changes nothing: no need to write the state file
+            book_.delivered(out);
+            changed();
+        }
     }
 
 protected:
