@@ -8,7 +8,7 @@
 //   role: instrument                    # or computer (the LIS side)
 //   endpoint: tcp://127.0.0.1:15000     # see io/endpoint.hpp
 //   timing: {reply_timeout: 15s, receive_timeout: 30s, busy_retry: 10s,
-//            max_frame_attempts: 6}
+//            max_frame_attempts: 6, contention_winner: instrument}
 //   faults:
 //     - {on: ack, nth: 2, do: nak}      # targets ack nak enq eot frame
 //     - {on: frame, every: 5, do: corrupt}

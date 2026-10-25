@@ -1,0 +1,38 @@
+id: cepheid-genexpert
+vendor: Cepheid
+model: GeneXpert (Dx, Xpress, Infinity, System with Touchscreen)
+sources: [1, 2]          # README.md, table "Sources"
+verified_on_instrument: false
+transport:
+  kind: tcp
+  listen: either         # instrument setting: LIS as server or as client
+  tls: client-only       # Cepheid OS >= 2.0, TLS 1.2/1.3
+  hl7_framing: lis01     # HL7 mode also uses LIS01-A2 frames, not MLLP
+lis01:
+  max_text: 240
+  checksum_lowercase: false
+  contention_winner: unclear   # README, known issue 1
+  honours_receiver_interrupt: false
+  link_check: enq-eot          # ENQ, reply, EOT without frames
+lis02:
+  delimiters: "|@^\\"
+  version_field: "1394-97"
+  charset: latin1              # configured code page on the instrument
+  non_ascii: raw
+  local_escape: utf16-hex      # \Zhhhh\ for characters outside the code page
+  ignored_escapes: [H, N]
+  trailing_empty_fields: both
+  order_without_patient: false
+records:
+  sends: [H, P, O, R, C, Q, L]
+  accepts: [H, P, O, C, Q, L]
+queries:
+  one_at_a_time: true
+  answer_timeout: 60s
+  no_orders_reply: "L|1|I"
+  orders_reply_termination: "F"
+  unsolicited_orders: false
+results:
+  universal_test_id_components: 8
+  value_components: [qualitative, quantitative]
+  repeats_records_after_failure: true

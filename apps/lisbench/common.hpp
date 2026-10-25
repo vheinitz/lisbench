@@ -44,6 +44,7 @@ inline std::string read_input(const std::string& path) {
 struct TextFlags {
     std::string charset{"latin1"};
     std::string non_ascii{"ascii-hex"};
+    std::string local_escape{"keep"};
     bool strict{false};
 
     void add_to(CLI::App& cmd) {
@@ -52,6 +53,10 @@ struct TextFlags {
             ->capture_default_str();
         cmd.add_option("--non-ascii", non_ascii, "Non-ASCII handling when encoding")
             ->check(CLI::IsMember({"ascii-hex", "raw", "transliterate"}))
+            ->capture_default_str();
+        cmd.add_option("--local-escape", local_escape,
+                       "Local escape Z..: keep literally, or utf16-hex (code units in hex)")
+            ->check(CLI::IsMember({"keep", "utf16-hex"}))
             ->capture_default_str();
         cmd.add_flag("--strict", strict, "Reject unknown escapes, record types, invalid bytes");
     }
@@ -64,6 +69,8 @@ struct TextFlags {
         };
         return {.charset = charset == "utf8" ? lis02::Charset::utf8 : lis02::Charset::latin1,
                 .non_ascii = modes.at(non_ascii),
+                .local_escape = local_escape == "utf16-hex" ? lis02::LocalEscape::utf16_hex
+                                                            : lis02::LocalEscape::keep,
                 .strict = strict};
     }
 };

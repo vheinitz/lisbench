@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <tuple>
+
 #include "lisbench/lis01_link.hpp"
 #include "lisbench/monitor/capture.hpp"
 #include "lisbench/monitor/monitor.hpp"
@@ -90,6 +92,23 @@ TEST_CASE("monitor: aborted transfer, NAK and slow reply are reported") {
         std::ranges::find_if(ev, [](const Event& e) { return e.kind == Kind::transfer; });
     REQUIRE(transfer != ev.end());
     CHECK(transfer->text.contains("INCOMPLETE"));
+}
+
+TEST_CASE("monitor: ENQ, ACK, EOT is a link check, not an aborted transfer") {
+    Monitor m{Options{}};
+    const auto t0 = Clock::time_point{} + 1000h;
+    std::vector<Event> ev;
+    for (auto [side, dt, b] : {std::tuple{Side::a, 0ms, enq}, std::tuple{Side::b, 3ms, ack},
+                               std::tuple{Side::a, 4ms, eot}}) {
+        const auto more = m.feed(side, t0 + dt, b);
+        ev.insert(ev.end(), more.begin(), more.end());
+    }
+    CHECK(m.stats(Side::a).incomplete_transfers == 0);
+    CHECK(m.stats(Side::a).transfers == 0);
+    const auto transfer =
+        std::ranges::find_if(ev, [](const Event& e) { return e.kind == Kind::transfer; });
+    REQUIRE(transfer != ev.end());
+    CHECK(transfer->text == "empty transfer (link check)");
 }
 
 TEST_CASE("capture lines round-trip") {

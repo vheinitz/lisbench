@@ -107,7 +107,13 @@ void Monitor::on_decoded(Side from, Clock::time_point at, lis01::DecoderEvent& e
                     side.saw_terminator = false;
                     side.waiting_since = at;
                 } else if (c.value == lis01::ctl::eot) {
-                    if (side.in_transfer) {
+                    if (side.in_transfer && side.records_in_transfer == 0) {
+                        // ENQ, ACK, EOT: some instruments test the link this way.
+                        out.push_back(Event{.at = at,
+                                            .from = from,
+                                            .kind = Kind::transfer,
+                                            .text = "empty transfer (link check)"});
+                    } else if (side.in_transfer) {
                         ++st.transfers;
                         const bool whole = side.saw_terminator;
                         if (!whole) {

@@ -1,0 +1,9 @@
+# Plays a GeneXpert towards a LIS under test: queries for all orders, expects
+# an answer within the instrument's 60 s, then uploads a multi-result test.
+name: GeneXpert-like instrument
+role: instrument
+endpoint: tcp://127.0.0.1:15000
+steps:
+  - send: examples/query-all.astm
+  - expect: {within: 60s, contains: ["L|1|"], valid: true}
+  - send: examples/results.astm

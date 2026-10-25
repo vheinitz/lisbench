@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <format>
+#include <optional>
 #include <ranges>
 #include <utility>
 
@@ -39,6 +40,19 @@ std::vector<std::uint8_t> charset_bytes(char32_t cp, Charset charset) {
     utf8_append(tmp, cp);
     return compat::to_vector(
         tmp | std::views::transform([](char c) { return static_cast<std::uint8_t>(c); }));
+}
+
+void append_utf16_escape(std::string& out, char32_t cp, char esc) {
+    out += esc;
+    out += 'Z';
+    const auto v = static_cast<std::uint32_t>(cp);
+    if (v < 0x10000) {
+        out += std::format("{:04X}", v);
+    } else {
+        const auto u = v - 0x10000;
+        out += std::format("{:04X}{:04X}", 0xD800U | (u >> 10U), 0xDC00U | (u & 0x3FFU));
+    }
+    out += esc;
 }
 
 int hex_digit(char c) {
@@ -212,13 +226,14 @@ std::expected<Encoded, CodecError> encode(std::string_view utf8, const Delimiter
             }
         } else {
             const auto b = charset_bytes(cp, options.charset);
-            if (b.empty()) {
+            if (b.empty() && options.local_escape == LocalEscape::utf16_hex) {
+                append_utf16_escape(out, cp, d.escape);
+            } else if (b.empty()) {
                 return std::unexpected(
                     CodecError{.offset = out.size(),
                                .text = std::format("U+{:04X} cannot be represented in Latin-1",
                                                    static_cast<std::uint32_t>(cp))});
-            }
-            if (options.non_ascii == NonAscii::ascii_hex) {
+            } else if (options.non_ascii == NonAscii::ascii_hex) {
                 append_hex_escape(out, b, d.escape);
             } else {
                 for (const auto byte : b) {
@@ -230,48 +245,42 @@ std::expected<Encoded, CodecError> encode(std::string_view utf8, const Delimiter
     return result;
 }
 
-std::expected<std::string, CodecError> decode(std::string_view wire, const Delimiters& d,
-                                              const TextOptions& options) {
-    std::string raw;  // bytes in the wire charset
-    raw.reserve(wire.size());
-    for (std::size_t i = 0; i < wire.size(); ++i) {
-        if (wire[i] != d.escape) {
-            raw += wire[i];
-            continue;
-        }
-        const auto end = wire.find(d.escape, i + 1);
-        if (end == std::string_view::npos) {
-            if (options.strict) {
-                return std::unexpected(
-                    CodecError{.offset = i, .text = "unterminated escape sequence"});
-            }
-            raw += wire.substr(i);
-            break;
-        }
-        const auto body = wire.substr(i + 1, end - i - 1);
-        if (body == "F") {
-            raw += d.field;
-        } else if (body == "S") {
-            raw += d.component;
-        } else if (body == "R") {
-            raw += d.repeat;
-        } else if (body == "E") {
-            raw += d.escape;
-        } else if (body.size() >= 3 && body.front() == 'X' && (body.size() - 1) % 2 == 0 &&
-                   std::ranges::all_of(body.substr(1), [](char c) { return hex_digit(c) >= 0; })) {
-            for (std::size_t k = 1; k < body.size(); k += 2) {
-                raw += static_cast<char>((hex_digit(body[k]) << 4) | hex_digit(body[k + 1]));
-            }
-        } else {
-            if (options.strict) {
-                return std::unexpected(CodecError{
-                    .offset = i, .text = std::format("unknown escape sequence '{}'", body)});
-            }
-            raw += wire.substr(i, end - i + 1);
-        }
-        i = end;
-    }
+namespace {
 
+// UTF-16 code units in hex (4 digits each) -> UTF-8; nullopt if malformed.
+std::optional<std::string> utf16_hex_to_utf8(std::string_view hex) {
+    if (hex.empty() || hex.size() % 4 != 0 ||
+        !std::ranges::all_of(hex, [](char c) { return hex_digit(c) >= 0; })) {
+        return std::nullopt;
+    }
+    std::vector<std::uint32_t> units;
+    for (std::size_t k = 0; k < hex.size(); k += 4) {
+        std::uint32_t u = 0;
+        for (std::size_t j = 0; j < 4; ++j) {
+            u = (u << 4U) | static_cast<std::uint32_t>(hex_digit(hex[k + j]));
+        }
+        units.push_back(u);
+    }
+    std::string out;
+    for (std::size_t k = 0; k < units.size(); ++k) {
+        const auto u = units[k];
+        if (u >= 0xD800 && u <= 0xDBFF && k + 1 < units.size() && units[k + 1] >= 0xDC00 &&
+            units[k + 1] <= 0xDFFF) {
+            utf8_append(out, static_cast<char32_t>(0x10000 + ((u - 0xD800) << 10U) +
+                                                   (units[k + 1] - 0xDC00)));
+            ++k;
+        } else if (u >= 0xD800 && u <= 0xDFFF) {
+            return std::nullopt;  // unpaired surrogate
+        } else {
+            utf8_append(out, static_cast<char32_t>(u));
+        }
+    }
+    return out;
+}
+
+// Bytes in the wire charset -> UTF-8.
+std::expected<std::string, CodecError> charset_to_utf8(const std::string& raw,
+                                                       const TextOptions& options) {
     if (options.charset == Charset::latin1) {
         std::string out;
         out.reserve(raw.size());
@@ -304,6 +313,76 @@ std::expected<std::string, CodecError> decode(std::string_view wire, const Delim
             utf8_append(out, replacement_char);
             ++i;
         }
+    }
+    return out;
+}
+
+}  // namespace
+
+std::expected<std::string, CodecError> decode(std::string_view wire, const Delimiters& d,
+                                              const TextOptions& options) {
+    std::string out;  // UTF-8
+    std::string raw;  // bytes in the wire charset, not yet converted
+    const auto flush = [&]() -> std::expected<void, CodecError> {
+        auto text = charset_to_utf8(raw, options);
+        if (!text) {
+            return std::unexpected(text.error());
+        }
+        out += *text;
+        raw.clear();
+        return {};
+    };
+    raw.reserve(wire.size());
+    for (std::size_t i = 0; i < wire.size(); ++i) {
+        if (wire[i] != d.escape) {
+            raw += wire[i];
+            continue;
+        }
+        const auto end = wire.find(d.escape, i + 1);
+        if (end == std::string_view::npos) {
+            if (options.strict) {
+                return std::unexpected(
+                    CodecError{.offset = i, .text = "unterminated escape sequence"});
+            }
+            raw += wire.substr(i);
+            break;
+        }
+        const auto body = wire.substr(i + 1, end - i - 1);
+        std::optional<std::string> local;
+        if (options.local_escape == LocalEscape::utf16_hex && body.starts_with('Z')) {
+            local = utf16_hex_to_utf8(body.substr(1));
+        }
+        if (body == "F") {
+            raw += d.field;
+        } else if (body == "S") {
+            raw += d.component;
+        } else if (body == "R") {
+            raw += d.repeat;
+        } else if (body == "E") {
+            raw += d.escape;
+        } else if (body.size() >= 3 && body.front() == 'X' && (body.size() - 1) % 2 == 0 &&
+                   std::ranges::all_of(body.substr(1), [](char c) { return hex_digit(c) >= 0; })) {
+            for (std::size_t k = 1; k < body.size(); k += 2) {
+                raw += static_cast<char>((hex_digit(body[k]) << 4) | hex_digit(body[k + 1]));
+            }
+        } else if (local) {
+            if (auto ok = flush(); !ok) {
+                return std::unexpected(ok.error());
+            }
+            out += *local;
+        } else {
+            // Z is the standard's local escape: kept as is unless it is to be read as UTF-16.
+            const bool known = body.starts_with('Z') && options.local_escape == LocalEscape::keep;
+            if (options.strict && !known) {
+                return std::unexpected(CodecError{
+                    .offset = i, .text = std::format("unknown escape sequence '{}'", body)});
+            }
+            raw += wire.substr(i, end - i + 1);
+        }
+        i = end;
+    }
+    if (auto ok = flush(); !ok) {
+        return std::unexpected(ok.error());
     }
     return out;
 }

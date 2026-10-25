@@ -10,8 +10,9 @@ interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
 Status: **v0.6, protocol core, command line tool, simulator, monitor,
-bridges, database mapper and instrument simulators for Arduino/ESP32.** A
-web UI is planned; see [docs/spec/features.md](docs/spec/features.md).
+bridges, database mapper and instrument simulators for Arduino/ESP32;
+first instrument profile ([Cepheid GeneXpert](docs/devices/cepheid-genexpert/README.md),
+from the public specification).** A web UI is planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now

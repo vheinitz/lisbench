@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.1 – 2026-10-25
+
+- First instrument profile: `docs/devices/cepheid-genexpert/` (README,
+  profile.yaml, own example messages, LIS and instrument scenarios), written
+  from the public interface specification; not yet checked on an instrument.
+- Codec: `local_escape: utf16-hex` / `--local-escape utf16-hex` reads the
+  local escape `Z` as UTF-16 code units in hex and writes characters outside
+  the code page that way. In strict mode `Z` with the default `keep` is no
+  longer an "unknown escape".
+- Link: `Timing::contention_winner` (scenario `timing: {contention_winner:
+  computer}`) for instruments that yield to the LIS on contention.
+- Monitor: ENQ, ACK, EOT without frames is reported as `empty transfer (link
+  check)` instead of an incomplete transfer.
+- Tests: examples and scenarios under `docs/devices` are parsed, validated
+  and loaded in CI.
+
 ## 0.6.0 – 2026-10-25
 
 - `devsim/LisDevice`: Arduino library, instrument side of LIS01-A2 in one

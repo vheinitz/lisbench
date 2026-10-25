@@ -176,7 +176,7 @@ void Link::on_byte(std::byte b, Events& out) {
                 arm(timing_.busy_retry, out);
             } else if (b == ctl::enq) {
                 // Contention: both sides sent ENQ.
-                if (role_ == Role::computer) {
+                if (role_ != timing_.contention_winner) {
                     queue_.push_front(std::move(active()));
                     current_.reset();
                     state_ = State::neutral;

@@ -14,6 +14,12 @@
 //   raw            the bytes of the wire charset unescaped (8-bit on the wire)
 //   transliterate  nearest ASCII (é -> e, ä -> ae); unmappable characters are
 //                  dropped and reported
+//
+// &Z..& is a "local" escape whose content the standard leaves to the
+// manufacturer. By default it is kept literally. utf16_hex reads it as UTF-16
+// code units in hex (&Z00E9& = é), as some instruments do for characters
+// outside their code page; when encoding, such characters are then written
+// that way instead of being an error.
 
 #include <cstdint>
 #include <expected>
@@ -37,10 +43,12 @@ struct Delimiters {
 
 enum class Charset : std::uint8_t { latin1, utf8 };
 enum class NonAscii : std::uint8_t { ascii_hex, raw, transliterate };
+enum class LocalEscape : std::uint8_t { keep, utf16_hex };
 
 struct TextOptions {
     Charset charset{Charset::latin1};
     NonAscii non_ascii{NonAscii::ascii_hex};
+    LocalEscape local_escape{LocalEscape::keep};
     // Strict: unknown or unterminated escapes and invalid bytes are errors.
     // Lenient: they are kept literally (or replaced by U+FFFD).
     bool strict{false};

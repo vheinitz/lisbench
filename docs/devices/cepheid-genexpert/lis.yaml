@@ -1,0 +1,13 @@
+# A LIS for a GeneXpert. In the GeneXpert host settings either let the
+# instrument connect to this port (LIS as server, as here) or swap the roles
+# with endpoint: tcp://<instrument>:<port>. Every query is answered with
+# examples/orders.astm; use examples/no-orders.astm for the "nothing to do"
+# reply. The instrument cancels a query that is not answered within 60 s.
+name: LIS for GeneXpert
+role: computer
+endpoint: tcp-listen://0.0.0.0:15000
+# The manual states both rules for contention (README, "Known issues"). The
+# standard rule is kept; try computer here if both sides keep backing off.
+timing: {contention_winner: instrument}
+answer_queries: examples/orders.astm
+serve: true

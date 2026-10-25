@@ -22,7 +22,8 @@ target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisben
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(lisbench_tests PRIVATE util)
 endif()
-target_compile_definitions(lisbench_tests PRIVATE LISBENCH_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus")
+target_compile_definitions(lisbench_tests PRIVATE LISBENCH_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
+                                                  LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(lisbench_tests)

@@ -122,6 +122,32 @@ TEST_CASE("unknown and unterminated escapes") {
     CHECK(decode("&X4&", std_delims, lenient).value() == "&X4&");  // odd digit count
 }
 
+TEST_CASE("local escape Z as UTF-16 code units") {
+    const Delimiters bs{.field = '|', .repeat = '@', .component = '^', .escape = '\\'};
+    const TextOptions keep{.strict = true};
+    const TextOptions utf16{.local_escape = LocalEscape::utf16_hex};
+    const TextOptions utf16_strict{.local_escape = LocalEscape::utf16_hex, .strict = true};
+    CHECK(decode("caf\\Z00E9\\", bs, keep).value() == "caf\\Z00E9\\");
+    CHECK(decode("caf\\Z00E9\\", bs, utf16).value() == "café");
+    CHECK(decode("\\Z34C8004100E9\\", bs, utf16).value() == "\u34C8Aé");
+    CHECK(decode("x\\ZD83DDE00\\y", bs, utf16).value() == "x\U0001F600y");  // surrogate pair
+    // Latin-1 bytes before and after the escape are converted as usual.
+    CHECK(decode("\xE9\\Z20AC\\\xE9", bs, utf16).value() == "é€é");
+    CHECK(decode("\\ZD83D\\", bs, utf16).value() == "\\ZD83D\\");  // lone surrogate kept
+    CHECK_FALSE(decode("\\ZD83D\\", bs, utf16_strict));
+    CHECK_FALSE(decode("\\Z12\\", bs, utf16_strict));
+
+    CHECK(encode("€ 😀", bs, utf16)->wire == "\\Z20AC\\ \\ZD83DDE00\\");
+    CHECK(encode("é", bs, utf16)->wire == "\\XE9\\");  // in the code page: hex as before
+    CHECK_FALSE(encode("€", bs, {}));
+    for (const char32_t cp : {char32_t{0x100}, char32_t{0x34C8}, char32_t{0xFFFD},
+                              char32_t{0x10000}, char32_t{0x10FFFF}}) {
+        std::string s;
+        utf8_append(s, cp);
+        CHECK(decode(encode(s, bs, utf16)->wire, bs, utf16).value() == s);
+    }
+}
+
 TEST_CASE("invalid UTF-8 on the wire") {
     const TextOptions lenient{.charset = Charset::utf8};
     const TextOptions strict{.charset = Charset::utf8, .strict = true};

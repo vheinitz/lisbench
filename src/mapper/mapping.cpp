@@ -308,6 +308,15 @@ std::expected<Mapping, std::string> parse_mapping(std::string_view yaml, std::st
                         at(t["non_ascii"], "non_ascii is ascii-hex, raw or transliterate"));
                 }
             }
+            if (t["local_escape"]) {
+                const auto l = t["local_escape"].as<std::string>();
+                if (l != "keep" && l != "utf16-hex") {
+                    return std::unexpected(
+                        at(t["local_escape"], "local_escape is keep or utf16-hex"));
+                }
+                m.text.local_escape =
+                    l == "utf16-hex" ? lis02::LocalEscape::utf16_hex : lis02::LocalEscape::keep;
+            }
         }
         if (!root["message"]) {
             return std::unexpected("a mapping needs 'message'");

@@ -212,6 +212,32 @@ TEST_CASE("contention: the instrument goes first, the computer afterwards") {
     CHECK(to_string(wire[0].records[0]) == "H|\\^&|||computer");
 }
 
+TEST_CASE("contention: the computer goes first when both agree it wins") {
+    Wire wire{Role::instrument, Role::computer, Timing{.contention_winner = Role::computer}};
+    const auto from_instrument = wire.submit(0, message_of({"H|\\^&|||instrument", "L|1|N"}));
+    const auto from_computer = wire.submit(1, message_of({"H|\\^&|||computer", "L|1|N"}));
+    wire.run();
+    CHECK(wire[0].finished.at(from_instrument) == std::vector{Outcome::delivered});
+    CHECK(wire[1].finished.at(from_computer) == std::vector{Outcome::delivered});
+    REQUIRE(wire[0].records.size() == 2);
+    REQUIRE(wire[1].records.size() == 2);
+    CHECK(to_string(wire[0].records[0]) == "H|\\^&|||computer");
+    CHECK(to_string(wire[1].records[0]) == "H|\\^&|||instrument");
+
+    // Who yields, seen on one link at a time.
+    const Timing computer_wins{.contention_winner = Role::computer};
+    for (const auto role : {Role::instrument, Role::computer}) {
+        Link link{role, computer_wins};
+        Events ev;
+        (void)link.submit(message_of({"H|\\^&", "L|1|N"}), ev);
+        ev.clear();
+        feed(link, ctl::enq, ev);
+        CHECK(link.state() == (role == Role::computer ? State::contention_wait : State::neutral));
+        REQUIRE(all<ev::ArmTimer>(ev).size() == 1);
+        CHECK(all<ev::ArmTimer>(ev)[0].after == (role == Role::computer ? 1s : 20s));
+    }
+}
+
 TEST_CASE("sender: ENQ answered with NAK is retried after busy_retry") {
     Link link{Role::instrument};
     Events ev;

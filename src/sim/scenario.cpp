@@ -237,6 +237,14 @@ std::expected<Scenario, std::string> parse_scenario(std::string_view yaml,
                     return std::unexpected(r.error());
                 }
             }
+            if (const auto w = t["contention_winner"]) {
+                const auto v = w.as<std::string>();
+                if (v != "instrument" && v != "computer") {
+                    return std::unexpected(at(w, "contention_winner is instrument or computer"));
+                }
+                s.timing.contention_winner =
+                    v == "computer" ? lis01::Role::computer : lis01::Role::instrument;
+            }
             if (t["max_frame_attempts"]) {
                 s.timing.max_frame_attempts = t["max_frame_attempts"].as<int>();
             }

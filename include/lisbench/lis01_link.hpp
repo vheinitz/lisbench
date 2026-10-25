@@ -26,17 +26,21 @@ namespace lisbench::lis01 {
 using std::chrono::milliseconds;
 
 // Which side of the link this is. Decides who yields on contention: the
-// instrument has priority, the computer system (LIS) backs off.
+// instrument has priority, the computer system (LIS) backs off (see
+// Timing::contention_winner).
 enum class Role : std::uint8_t { instrument, computer };
 
 struct Timing {
     milliseconds reply_timeout{15'000};         // sender: wait for ACK/NAK
     milliseconds receive_timeout{30'000};       // receiver: wait for next frame/EOT
     milliseconds busy_retry{10'000};            // sender: ENQ answered with NAK
-    milliseconds contention_instrument{1'000};  // instrument: re-send ENQ after contention
-    milliseconds contention_computer{20'000};   // computer: hold off after contention
-    int max_frame_attempts{6};                  // transmissions of one frame before abort
-    std::size_t max_text{max_text_size};        // accepted frame text on receive
+    milliseconds contention_instrument{1'000};  // winner: re-send ENQ after contention
+    milliseconds contention_computer{20'000};   // loser: hold off after contention
+    // LIS01-A2 gives the instrument priority. Some instruments yield to the
+    // LIS instead; both sides must agree, or both back off.
+    Role contention_winner{Role::instrument};
+    int max_frame_attempts{6};            // transmissions of one frame before abort
+    std::size_t max_text{max_text_size};  // accepted frame text on receive
 };
 
 using MessageId = std::uint64_t;

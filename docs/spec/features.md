@@ -60,6 +60,7 @@ mapper and microcontroller simulators.
 | **v0.4** (done) | `bridge`: serial↔TCP, TCP client↔server (role swap), reconnect in serve mode; `record`: serial or TCP → capture/raw file; tap mode is part of `monitor` | byte-transparent for 200 kB random data each way |
 | **v0.5** (done) | `mapper`: SQLite → messages by declarative YAML (nested queries with named scopes `${patient.pid}`, `${cfg.x}`/`${arg.x}` via lexer, bound parameters, `skip_if_empty`, write-back with bound parameters, stable message control ID); `lisbench map` to stdout, TCP/serial or files | mapper acceptance list, §5 |
 | **v0.6** (done) | microcontroller instrument simulators: `LisDevice` library, Arduino Uno sketch (serial) and ESP32 sketch (Wi-Fi/TCP) playing an analyzer as LIS client; moved before the web UI because it lets everyone try the tools at once | host tests against the lisbench link; compiled for both boards in CI; 24 h on hardware still open |
+| v0.6.1 (done) | first instrument profile (Cepheid GeneXpert, from the public specification); local escape `Z` as UTF-16; configurable contention winner; link check in the monitor | examples and scenarios of every profile parsed and loaded in CI |
 | v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; triggers that run actions on a watch hit; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 

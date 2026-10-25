@@ -10,6 +10,7 @@
 #include "lisbench/lis01_frame.hpp"
 #include "lisbench/lis01_link.hpp"
 #include "lisbench/lis02_message.hpp"
+#include "lisbench/sim/scenario.hpp"
 
 using namespace lisbench;
 namespace fs = std::filesystem;
@@ -71,4 +72,38 @@ TEST_CASE("corpus: valid files validate, invalid files are caught, all round-tri
         CHECK(capture.records == m.records);
     }
     CHECK(files >= 7);
+}
+
+// Instrument profiles: examples parse strictly and validate, scenarios load.
+TEST_CASE("device profiles: examples and scenarios") {
+    const lis02::ParseOptions options{
+        .text = {.local_escape = lis02::LocalEscape::utf16_hex, .strict = true}, .strict = true};
+    int examples = 0;
+    int scenarios = 0;
+    for (const auto& entry : fs::recursive_directory_iterator{LISBENCH_DEVICES_DIR}) {
+        INFO(entry.path().string());
+        if (entry.path().extension() == ".astm") {
+            ++examples;
+            const auto wire = records_of(read_file(entry.path()));
+            const auto message = lis02::parse(wire, options);
+            REQUIRE(message);
+            CHECK(std::ranges::none_of(lis02::validate(*message), [](const auto& i) {
+                return i.severity == lis02::Severity::error;
+            }));
+            // The serializer drops trailing empty fields; otherwise the text is kept.
+            auto expected = wire;
+            for (auto& r : expected) {
+                while (r.ends_with('|')) {
+                    r.pop_back();
+                }
+            }
+            CHECK(lis02::serialize(*message, options.text).value() == expected);
+        } else if (entry.path().extension() == ".yaml" &&
+                   entry.path().filename() != "profile.yaml") {
+            ++scenarios;
+            CHECK(sim::load_scenario(entry.path()));
+        }
+    }
+    CHECK(examples >= 5);
+    CHECK(scenarios >= 2);
 }
