@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Serial ports: input that arrived before the port was opened is dropped
+  (100 ms after opening, POSIX `tcflush` / Windows `PurgeComm`). An Arduino
+  left running for half an hour had queued 54 ENQ/EOT pairs, which were
+  answered with a burst of stale ACKs.
+
 ## 0.6.2 – 2026-10-25
 
 First run on hardware: Uno-compatible board (ATmega328P, FTDI) with the

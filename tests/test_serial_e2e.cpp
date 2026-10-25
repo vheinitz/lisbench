@@ -10,6 +10,7 @@
 
 #include <array>
 
+#include "lisbench/io/session.hpp"
 #include "lisbench/sim/runner.hpp"
 
 using namespace lisbench;
@@ -46,6 +47,33 @@ asio::awaitable<void> pump(asio::posix::stream_descriptor& from,
 }
 
 }  // namespace
+
+TEST_CASE("serial: bytes that arrived before the port was opened are dropped") {
+    // An instrument that retried ENQ ... EOT while nobody listened; found on
+    // an Arduino left running for half an hour.
+    auto p = open_pty();
+    const std::string stale = "\x05\x04\x05\x04\x05\x04";
+    REQUIRE(::write(p.master, stale.data(), stale.size()) == static_cast<ssize_t>(stale.size()));
+
+    asio::io_context io;
+    std::string got;
+    asio::co_spawn(
+        io,
+        [&]() -> asio::awaitable<void> {
+            auto stream = co_await io::connect(io::Serial{.device = p.slave, .baud = 9600});
+            auto& port = std::get<asio::serial_port>(stream);
+            const std::string fresh = "\x05";
+            REQUIRE(::write(p.master, fresh.data(), fresh.size()) == 1);
+            std::array<char, 16> buffer{};
+            const auto n = co_await port.async_read_some(asio::buffer(buffer), asio::use_awaitable);
+            got.assign(buffer.data(), n);
+        },
+        asio::detached);
+    io.run_for(3s);
+    ::close(p.master);
+    ::close(p.slave_fd);
+    CHECK(got == "\x05");
+}
 
 TEST_CASE("e2e serial: results and query over a null modem") {
     asio::io_context io;

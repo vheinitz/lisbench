@@ -3,7 +3,14 @@
 #include <asio/experimental/awaitable_operators.hpp>
 
 #include <array>
+#include <chrono>
 #include <utility>
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <termios.h>
+#endif
 
 namespace lisbench::io {
 
@@ -259,6 +266,17 @@ asio::awaitable<Stream> connect(Endpoint endpoint) {
     port.set_option(asio::serial_port::parity{to_asio(s.parity)});
     port.set_option(asio::serial_port::stop_bits{to_asio(s.stop_bits)});
     port.set_option(asio::serial_port::flow_control{to_asio(s.flow)});
+    // Bytes that arrived while nobody listened (an instrument retrying ENQ
+    // for minutes) belong to no conversation; answering them would send a
+    // burst of stale ACKs. Wait for what the USB adapter still holds, then
+    // drop it.
+    asio::steady_timer settle{executor, std::chrono::milliseconds{100}};
+    co_await settle.async_wait(asio::use_awaitable);
+#if defined(_WIN32)
+    ::PurgeComm(port.native_handle(), PURGE_RXCLEAR);
+#else
+    ::tcflush(port.native_handle(), TCIFLUSH);
+#endif
     co_return Stream{std::move(port)};
 }
 
