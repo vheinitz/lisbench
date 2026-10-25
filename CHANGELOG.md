@@ -1,18 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.6.3 – 2026-10-25
 
+- `monitor --trigger "WATCH => ACTION"`: `exec CMD` runs a command with the
+  hit in `LISBENCH_WATCH`, `LISBENCH_VALUE`, `LISBENCH_RECORD`,
+  `LISBENCH_FROM`, `LISBENCH_TIME` (never pasted into the command line);
+  commands run in order on a worker thread with a bounded queue. `mark TEXT`
+  writes a mark line into the capture (`--save`), shown on replay. `stop`
+  ends the monitor. Works on `--replay` as well.
+- Watch expressions: a value that starts with `<`, `>`, `=` or `!` must be
+  quoted (`R.value >> 100` was silently a text comparison).
 - Fast test timing: `lisbench sim --fast-timing` and the Uno sketch built
   with `LISDEV_FAST_TEST=1` use 1 s pauses and short timeouts (2 s reply,
   4 s receive, 1 s busy). On the board: 15 messages in 20 s instead of one
   per 30 s; NAK, ENQ-NAK and late-ACK cases in seconds. Not LIS01-A2.
 - Uno sketch: the pause counts from the end of the last transfer, not from
-  its start.
-
-- Serial ports: input that arrived before the port was opened is dropped
-  (100 ms after opening, POSIX `tcflush` / Windows `PurgeComm`). An Arduino
-  left running for half an hour had queued 54 ENQ/EOT pairs, which were
-  answered with a burst of stale ACKs.
+  its start (with millis() read after the transfer ended; otherwise the
+  unsigned difference wrapped and the pause was skipped).
+- Serial ports: on opening, bytes are read and dropped until the line has
+  been quiet for 30 ms (at most 2 s). An Arduino left running without a
+  listener had queued several kB of ENQ/EOT pairs; the USB adapter delivers
+  them at once, even after a flush, and they were answered with a burst of
+  stale ACKs.
 
 ## 0.6.2 – 2026-10-25
 

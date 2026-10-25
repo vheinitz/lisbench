@@ -51,7 +51,9 @@ struct Event {
     Kind kind{Kind::control};
     std::string text{};
     std::optional<lis02::Record> record{};
-    bytes raw{};
+    bytes raw{};                         // record and watch: the record as received, without CR
+    std::optional<std::size_t> watch{};  // Kind::watch: index into Options::watches
+    std::string value{};                 // Kind::watch: the value that matched
 };
 
 struct SideStats {

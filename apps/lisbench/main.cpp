@@ -471,6 +471,9 @@ int run(int argc, char** argv) {
     monitor->add_option("--labels", mon.labels, "Names for A and B")->capture_default_str();
     monitor->add_option("--watch", mon.watches,
                         "Watch expression, e.g. \"R.value > 100\" (repeatable)");
+    monitor->add_option("--trigger", mon.triggers,
+                        "WATCH => exec CMD | mark [TEXT] | stop, e.g. \"R.value > 400 => exec "
+                        "./alarm.sh\" (repeatable; the hit is in LISBENCH_* variables)");
     monitor->add_option("--save", mon.save,
                         "Append the raw traffic to a capture file (JSON lines)");
     monitor->add_flag("--tap", mon.tap, "Only listen, do not pass bytes on (two receive lines)");

@@ -32,16 +32,20 @@ std::string to_capture_line(const CaptureLine& line) {
         hex += std::format("{:02x}", std::to_integer<unsigned>(b));
     }
     const auto t = std::chrono::floor<std::chrono::microseconds>(line.at);
-    const nlohmann::json j{{"t", std::format("{:%FT%T}Z", t)},
-                           {"from", line.from == io::Side::a ? "a" : "b"},
-                           {"hex", hex}};
+    nlohmann::json j{{"t", std::format("{:%FT%T}Z", t)},
+                     {"from", line.from == io::Side::a ? "a" : "b"}};
+    if (line.mark.empty()) {
+        j["hex"] = hex;
+    } else {
+        j["mark"] = line.mark;
+    }
     return j.dump();
 }
 
 std::expected<CaptureLine, std::string> parse_capture_line(std::string_view text) {
     const auto j = nlohmann::json::parse(text, nullptr, false);
     if (j.is_discarded() || !j.is_object() || !j.contains("t") || !j.contains("from") ||
-        !j.contains("hex")) {
+        (!j.contains("hex") && !j.contains("mark"))) {
         return std::unexpected("not a capture line");
     }
     CaptureLine line;
@@ -57,6 +61,10 @@ std::expected<CaptureLine, std::string> parse_capture_line(std::string_view text
     }
     line.at = *t;
 
+    if (j.contains("mark")) {
+        line.mark = j["mark"].get<std::string>();
+        return line;
+    }
     const auto hex = j["hex"].get<std::string>();
     if (hex.size() % 2 != 0) {
         return std::unexpected("odd number of hex digits");

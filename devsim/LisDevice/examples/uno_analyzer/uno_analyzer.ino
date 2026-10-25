@@ -105,7 +105,8 @@ void loop() {
     }
     device.poll(now);
 
-    const bool due = now - last_end >= pause_ms || digitalRead(button_pin) == LOW;
+    // millis() again: finished() may have set last_end after `now` was taken.
+    const bool due = millis() - last_end >= pause_ms || digitalRead(button_pin) == LOW;
     if (due && device.state() == lisdev::idle) {
         (void)device.start(now);
     }

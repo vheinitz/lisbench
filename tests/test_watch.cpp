@@ -28,9 +28,12 @@ TEST_CASE("watch expressions are parsed") {
     CHECK(e->value == "TSH");
     CHECK(watch::parse("R.4>=5.5")->op == watch::Op::ge);
     CHECK(watch::parse("P.patient_name contains \"Doe\"")->value == "Doe");
+    // Flags such as "<" (below the scale) must be quoted.
+    CHECK(watch::parse("R.abnormal_flags == \"<\"")->value == "<");
 
-    for (const auto* bad : {"R.value", "X.value == 1", "R.nope == 1", "R.1 == R", "R.value ~ 1",
-                            "R.value.0 == 1", "R.value matches ("}) {
+    for (const auto* bad :
+         {"R.value", "X.value == 1", "R.nope == 1", "R.1 == R", "R.value ~ 1", "R.value.0 == 1",
+          "R.value matches (", "R.value >> 100", "R.value => 100", "R.abnormal_flags == <"}) {
         INFO(bad);
         CHECK_FALSE(watch::parse(bad));
     }

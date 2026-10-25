@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(lisbench VERSION 0.6.2 LANGUAGES C CXX)
+project(lisbench VERSION 0.6.3 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,7 @@ target_include_directories(lisbench_core PUBLIC include)
 target_link_libraries(lisbench_core PRIVATE lisbench_warnings)
 
 add_library(lisbench_io
+  src/io/command.cpp
   src/io/endpoint.cpp
   src/io/faults.cpp
   src/io/relay.cpp
@@ -78,6 +79,7 @@ target_link_libraries(lisbench_mapper PUBLIC lisbench::core sqlite3 PRIVATE lisb
 add_library(lisbench_monitor
   src/monitor/monitor.cpp
   src/monitor/capture.cpp
+  src/monitor/trigger.cpp
 )
 add_library(lisbench::monitor ALIAS lisbench_monitor)
 target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)

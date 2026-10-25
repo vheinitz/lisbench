@@ -210,16 +210,21 @@ void Monitor::on_record(Side from, Clock::time_point at, bytes text, std::vector
         return;
     }
     ev.record = *record;
+    const auto record_wire = ev.raw;
     out.push_back(std::move(ev));
-    for (const auto& w : options_.watches) {
+    for (std::size_t i = 0; i < options_.watches.size(); ++i) {
+        const auto& w = options_.watches[i];
         if (watch::matches(w, *record, side.delimiters)) {
             ++st.watch_hits;
+            auto value = watch::value_of(w, *record, side.delimiters);
             out.push_back(Event{.at = at,
                                 .from = from,
                                 .kind = Kind::watch,
-                                .text = std::format("{}   (value: {})", w.text,
-                                                    watch::value_of(w, *record, side.delimiters)),
-                                .record = *record});
+                                .text = std::format("{}   (value: {})", w.text, value),
+                                .record = *record,
+                                .raw = record_wire,
+                                .watch = i,
+                                .value = std::move(value)});
         }
     }
 }

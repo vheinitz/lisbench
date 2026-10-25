@@ -110,6 +110,11 @@ std::expected<Expression, std::string> parse(std::string_view text) {
     }
     e.op = op->second;
     auto value = trim(rest.substr(op->first.size()));
+    if (!value.empty() && std::string_view{"<>=!"}.contains(value.front())) {
+        // "R.value >> 100" is a typo, not a comparison with "> 100"; quote it if meant.
+        return std::unexpected(
+            std::format("'{}': value starts with an operator character; quote it", t));
+    }
     if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
         value = value.substr(1, value.size() - 2);
     }

@@ -16,6 +16,7 @@ struct MonitorFlags {
     std::string replay;
     std::string labels{"A,B"};
     std::vector<std::string> watches;
+    std::vector<std::string> triggers;
     std::string save;
     bool tap{false};
     bool decode{false};

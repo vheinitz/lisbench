@@ -39,7 +39,8 @@ A spare-time project.
   receive lines): decodes both directions, flags bad and repeated frames,
   NAKs, slow replies and transfers without L record, evaluates watch
   expressions on field values (`R.value > 100`, `O.universal_test_id.4 ==
-  TSH`), saves the raw traffic and replays it offline.
+  TSH`) and triggers on them (`R.value > 400 => exec ./alarm.sh`, `=> mark`,
+  `=> stop`), saves the raw traffic and replays it offline.
 - Bridges without decoding: serial ↔ TCP, TCP client ↔ server (role swap),
   and recording of one endpoint to a capture or raw file.
 - Mapper from an SQLite database to messages, described in YAML: nested
@@ -71,9 +72,9 @@ lisbench decode  FILE [--json]      records or capture -> fields by name
 lisbench validate FILE              order, hierarchy, sequence numbers
 lisbench sim SCENARIO.yaml          run a simulator scenario
 lisbench sim --endpoint URI ...     the same from options (--send, --receive,
-                                    --answer-queries, --fault, --trace)
+                                    --answer-queries, --fault, --trace, --fast-timing)
 lisbench monitor --a URI --b URI    pass traffic through and show it decoded
-                                    (--watch, --save, --decode, --verbose, --tap)
+                                    (--watch, --trigger, --save, --decode, --verbose, --tap)
 lisbench monitor --replay FILE      the same for a saved capture
 lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
 lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)

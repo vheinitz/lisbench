@@ -17,6 +17,7 @@ add_executable(lisbench_tests
   test_bridge_e2e.cpp
   test_mapper.cpp
   test_devsim.cpp
+  test_trigger.cpp
 )
 target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench_warnings Catch2::Catch2WithMain)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

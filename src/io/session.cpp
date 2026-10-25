@@ -6,12 +6,6 @@
 #include <chrono>
 #include <utility>
 
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <termios.h>
-#endif
-
 namespace lisbench::io {
 
 namespace {
@@ -268,15 +262,19 @@ asio::awaitable<Stream> connect(Endpoint endpoint) {
     port.set_option(asio::serial_port::flow_control{to_asio(s.flow)});
     // Bytes that arrived while nobody listened (an instrument retrying ENQ
     // for minutes) belong to no conversation; answering them would send a
-    // burst of stale ACKs. Wait for what the USB adapter still holds, then
-    // drop it.
-    asio::steady_timer settle{executor, std::chrono::milliseconds{100}};
-    co_await settle.async_wait(asio::use_awaitable);
-#if defined(_WIN32)
-    ::PurgeComm(port.native_handle(), PURGE_RXCLEAR);
-#else
-    ::tcflush(port.native_handle(), TCIFLUSH);
-#endif
+    // burst of stale ACKs. USB adapters deliver such a backlog at once, even
+    // after the port was flushed, so read and drop until the line has been
+    // quiet for a moment (at most 2 s, in case the partner never pauses).
+    std::array<char, 512> junk{};
+    const auto give_up = std::chrono::steady_clock::now() + std::chrono::seconds{2};
+    while (std::chrono::steady_clock::now() < give_up) {
+        asio::steady_timer quiet{executor, std::chrono::milliseconds{30}};
+        const auto r = co_await (port.async_read_some(asio::buffer(junk), use_tuple) ||
+                                 quiet.async_wait(use_tuple));
+        if (r.index() == 1 || std::get<0>(std::get<0>(r))) {
+            break;  // quiet, or the port failed (reported by the first real read)
+        }
+    }
     co_return Stream{std::move(port)};
 }
 
