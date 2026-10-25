@@ -93,10 +93,10 @@ asio::awaitable<void> record_loop(io::Endpoint from, bool serve, std::ofstream* 
                                   << std::flush;
                      }
                      if (raw != nullptr) {
-                         raw->write(
-                             reinterpret_cast<const char*>(data.data()),  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast):
-                                                                          // ostream takes char
-                             static_cast<std::streamsize>(data.size()));
+                         // ostream writes char; the bytes are passed on unchanged.
+                         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+                         const auto* chars = reinterpret_cast<const char*>(data.data());
+                         raw->write(chars, static_cast<std::streamsize>(data.size()));
                          raw->flush();
                      }
                  },
