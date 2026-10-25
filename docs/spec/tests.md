@@ -48,7 +48,7 @@ one error per frame.
 
 ## 4. Tooling in CI
 
-GCC 13 and 14, Clang 18, MSVC 2022 with warnings as errors; ASan + UBSan;
+GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,
 `readability`, exceptions listed in `.clang-tidy`); clang-format check;
 three libFuzzer targets.

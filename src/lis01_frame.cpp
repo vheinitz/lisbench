@@ -1,5 +1,6 @@
 #include "lisbench/lis01_frame.hpp"
 
+#include <algorithm>
 #include <array>
 #include <format>
 #include <optional>
@@ -35,18 +36,17 @@ constexpr std::expected<std::uint8_t, FrameError> hex_value(std::byte b) {
 }  // namespace
 
 bytes encode(const Frame& frame) {
-    bytes out;
-    out.reserve(frame.text.size() + frame_overhead);
-    out.push_back(ctl::stx);
-    out.push_back(static_cast<std::byte>('0' + (frame.number % 8U)));
-    out.insert(out.end(), frame.text.begin(), frame.text.end());
-    out.push_back(frame.last ? ctl::etx : ctl::etb);
-
-    const auto sum = checksum(bytes_view{out}.subspan(1));
-    out.push_back(digit_byte(static_cast<std::uint8_t>(sum >> 4U)));
-    out.push_back(digit_byte(sum));
-    out.push_back(ctl::cr);
-    out.push_back(ctl::lf);
+    const auto n = frame.text.size();
+    bytes out(n + frame_overhead);
+    out[0] = ctl::stx;
+    out[1] = static_cast<std::byte>('0' + (frame.number % 8U));
+    std::ranges::copy(frame.text, out.begin() + 2);
+    out[n + 2] = frame.last ? ctl::etx : ctl::etb;
+    const auto sum = checksum(bytes_view{out}.subspan(1, n + 2));
+    out[n + 3] = digit_byte(static_cast<std::uint8_t>(sum >> 4U));
+    out[n + 4] = digit_byte(sum);
+    out[n + 5] = ctl::cr;
+    out[n + 6] = ctl::lf;
     return out;
 }
 

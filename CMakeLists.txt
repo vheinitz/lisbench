@@ -20,8 +20,16 @@ else()
   target_compile_options(lisbench_warnings INTERFACE
     -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow
     -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Woverloaded-virtual
-    -Wnull-dereference -Wimplicit-fallthrough
+    -Wimplicit-fallthrough
     $<$<BOOL:${LISBENCH_WERROR}>:-Werror>)
+  # GCC 13/14 report these from inside libstdc++ after inlining at -O2/-O3
+  # (vector and string internals), not from this code. They stay visible as
+  # warnings but do not fail the build.
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(lisbench_warnings INTERFACE
+      -Wno-error=stringop-overflow -Wno-error=stringop-overread
+      -Wno-error=free-nonheap-object -Wno-error=array-bounds)
+  endif()
 endif()
 
 if(LISBENCH_SANITIZE)

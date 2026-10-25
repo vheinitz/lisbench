@@ -32,7 +32,7 @@ A spare-time project.
 
 ## Build
 
-Requires CMake ≥ 3.25 and a C++23 compiler (GCC ≥ 13, Clang ≥ 18 or MSVC 2022).
+Requires CMake ≥ 3.25 and a C++23 compiler (GCC ≥ 13, Clang ≥ 19 or MSVC 2022).
 Dependencies (CLI11, nlohmann/json, Catch2) are fetched at configure time.
 
 ```console
@@ -67,7 +67,7 @@ $ lisbench frame tests/corpus/valid_host_query.astm
 Unit tests, a property test over all record lengths 0–2000, a lossy-wire
 simulation (drops and bit errors, 200 seeds) for the link, an exhaustive
 character test U+0000–U+00FF in every mode, randomised round-trip tests, and
-libFuzzer targets in `fuzz/`. CI builds with GCC 13/14, Clang 18 and MSVC,
+libFuzzer targets in `fuzz/`. CI builds with GCC 13/14, Clang 19 and MSVC,
 runs ASan/UBSan, clang-tidy and the fuzzers. Details in
 [docs/spec/tests.md](docs/spec/tests.md).
 

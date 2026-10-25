@@ -2,7 +2,7 @@
 
 1. Test first: write the failing test, then the code. Every protocol rule
    has a test.
-2. Modern C++ is mandatory (C++23 where GCC 13, Clang 18 and MSVC 2022 all
+2. Modern C++ is mandatory (C++23 where GCC 13, Clang 19 and MSVC 2022 all
    support it). Use the standard feature instead of hand-written code:
    `std::span`, `std::expected`, `std::variant`, ranges, `<format>`,
    designated initializers, `constexpr`, concepts. Stand-ins for missing

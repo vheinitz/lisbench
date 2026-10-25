@@ -14,12 +14,16 @@ jobs:
         include:
           - { name: gcc-13, os: ubuntu-24.04, cxx: g++-13 }
           - { name: gcc-14, os: ubuntu-24.04, cxx: g++-14 }
-          - { name: clang-18, os: ubuntu-24.04, cxx: clang++-18 }
+          - { name: clang-19, os: ubuntu-24.04, cxx: clang++-19 }
           - { name: msvc, os: windows-2022, cxx: cl }
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
+      # Clang 18 cannot use libstdc++'s <expected>; 19 can.
+      - name: install clang 19
+        if: matrix.name == 'clang-19'
+        run: wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 19
       - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
@@ -48,7 +52,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-18 -DLISBENCH_BUILD_TESTS=OFF -DLISBENCH_BUILD_FUZZERS=ON
+      - run: wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 19
+      - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-19 -DLISBENCH_BUILD_TESTS=OFF -DLISBENCH_BUILD_FUZZERS=ON
       - run: cmake --build build
       - name: run each fuzzer for 60 s
         run: |
