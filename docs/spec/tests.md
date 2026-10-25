@@ -53,12 +53,18 @@ one error per frame.
 | Monitor | normal transfer with reply times and a watch hit, visibility per verbosity; aborted transfer without L, NAK, slow reply; capture line round trip | test_monitor.cpp |
 | End to end | instrument sim → relay with monitor → LIS sim over TCP, a corrupted frame on the way; statistics on both sides | test_monitor_e2e.cpp |
 
-Checked by hand for this release: a live session and its replay from the
-saved capture give identical output.
+A session fed directly and the same session written to capture lines and
+read back give identical output (test_monitor.cpp); checked by hand as well
+with a live session and `monitor --replay`.
 
-## 5. Later releases
-- v0.3: replay of recorded sessions into the monitor gives byte-identical
-  decoded output (golden files); watch expressions have a parser test suite.
+## 5. Bridges (v0.4)
+
+| Area | Test | File |
+|---|---|---|
+| Relay | 200 kB random bytes each way, written in random pieces, arrive unchanged; byte counts reported per side | test_bridge_e2e.cpp |
+
+## 6. Later releases
+
 - v0.5: the mapper acceptance list in features.md §5, each item one test,
   against an in-memory SQLite database.
 - v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32

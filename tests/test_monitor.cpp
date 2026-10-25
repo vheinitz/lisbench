@@ -109,3 +109,39 @@ TEST_CASE("capture lines round-trip") {
     CHECK_FALSE(parse_capture_line(R"({"t":"2026-10-25T01:00:00Z","from":"c","hex":"00"})"));
     CHECK_FALSE(parse_capture_line(R"({"t":"2026-10-25T01:00:00Z","from":"a","hex":"0"})"));
 }
+
+TEST_CASE("replay through capture lines gives the same output as the live feed") {
+    Options o;
+    o.watches.push_back(watch::parse("R.value > 1").value());
+    const auto t0 = Clock::time_point{} + 1'761'350'000s;
+    const std::vector<CaptureLine> session{
+        {.at = t0, .from = Side::a, .data = enq},
+        {.at = t0 + 1ms, .from = Side::b, .data = ack},
+        {.at = t0 + 2ms,
+         .from = Side::a,
+         .data = frames({"H|\\^&", "P|1", "O|1|S1", "R|1|^^^A|5", "L|1|N"})},
+        {.at = t0 + 3ms, .from = Side::b, .data = nak},
+        {.at = t0 + 4ms, .from = Side::a, .data = eot},
+    };
+    const auto render = [&o](Monitor& m, const std::vector<CaptureLine>& lines) {
+        std::vector<std::string> out;
+        for (const auto& l : lines) {
+            for (const auto& e : m.feed(l.from, l.at, l.data)) {
+                for (auto& s : format(e, o, {.verbose = true, .decode = true})) {
+                    out.push_back(std::move(s));
+                }
+            }
+        }
+        return out;
+    };
+    Monitor live{o};
+    Monitor replayed{o};
+    std::vector<CaptureLine> read_back;
+    for (const auto& l : session) {
+        read_back.push_back(parse_capture_line(to_capture_line(l)).value());
+    }
+    const auto a = render(live, session);
+    const auto b = render(replayed, read_back);
+    CHECK(a.size() > 10);
+    CHECK(a == b);
+}
