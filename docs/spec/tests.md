@@ -44,7 +44,19 @@ one error per frame.
 | End to end | instrument ↔ LIS over TCP: upload, query answered, refused and corrupted frames repeated, dropped ACK → timeout, six NAKs → rejected | test_sim_e2e.cpp |
 | End to end | instrument ↔ LIS over two serial ports joined by pseudo terminals (Linux) | test_serial_e2e.cpp |
 
-## 4. Later releases
+## 4. Monitor (v0.3)
+
+| Area | Test | File |
+|---|---|---|
+| Decoder | handshake, frames, records, noise in wire order, byte by byte; retransmission, bad frame, EOT inside a record, unfinished frame | test_lis01_decoder.cpp |
+| Watches | parsing and errors; numeric vs. text comparison, components, whole fields, regex, contains, other record types | test_watch.cpp |
+| Monitor | normal transfer with reply times and a watch hit, visibility per verbosity; aborted transfer without L, NAK, slow reply; capture line round trip | test_monitor.cpp |
+| End to end | instrument sim → relay with monitor → LIS sim over TCP, a corrupted frame on the way; statistics on both sides | test_monitor_e2e.cpp |
+
+Checked by hand for this release: a live session and its replay from the
+saved capture give identical output.
+
+## 5. Later releases
 - v0.3: replay of recorded sessions into the monitor gives byte-identical
   decoded output (golden files); watch expressions have a parser test suite.
 - v0.4: bridges under the lossy-wire model; throughput test.
@@ -53,7 +65,7 @@ one error per frame.
 - v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32
   simulator ↔ monitor on a Raspberry Pi.
 
-## 5. Tooling in CI
+## 6. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

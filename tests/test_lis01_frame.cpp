@@ -3,6 +3,7 @@
 
 #include <random>
 
+#include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis01_frame.hpp"
 
 using namespace lisbench;

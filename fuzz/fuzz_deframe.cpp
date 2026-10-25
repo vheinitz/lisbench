@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+#include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis01_frame.hpp"
 #include "lisbench/lis01_link.hpp"
 

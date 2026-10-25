@@ -9,8 +9,8 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.2, protocol core, command line tool and simulator.** Monitor,
-bridges, mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
+Status: **v0.3, protocol core, command line tool, simulator and monitor.**
+Bridges, mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now
@@ -33,6 +33,11 @@ A spare-time project.
   serial port: scenarios in YAML (send, expect, wait), automatic answers to
   queries, and fault injection on the wire (refuse, corrupt, drop or delay
   ACK, NAK, ENQ, EOT or frames). See [examples/](examples/).
+- Monitor between instrument and LIS (TCP or serial, or a passive tap on two
+  receive lines): decodes both directions, flags bad and repeated frames,
+  NAKs, slow replies and transfers without L record, evaluates watch
+  expressions on field values (`R.value > 100`, `O.universal_test_id.4 ==
+  TSH`), saves the raw traffic and replays it offline.
 
 ## Build
 
@@ -56,6 +61,9 @@ lisbench validate FILE              order, hierarchy, sequence numbers
 lisbench sim SCENARIO.yaml          run a simulator scenario
 lisbench sim --endpoint URI ...     the same from options (--send, --receive,
                                     --answer-queries, --fault, --trace)
+lisbench monitor --a URI --b URI    pass traffic through and show it decoded
+                                    (--watch, --save, --decode, --verbose, --tap)
+lisbench monitor --replay FILE      the same for a saved capture
 ```
 
 Endpoints: `tcp://host:port`, `tcp-listen://:port`,

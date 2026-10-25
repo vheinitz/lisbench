@@ -76,6 +76,10 @@ struct ParseOptions {
 [[nodiscard]] std::expected<Message, Error> parse(std::span<const std::string> records,
                                                   const ParseOptions& options = {});
 
+// Parses one record with known delimiters (a header record sets its own).
+[[nodiscard]] std::expected<Record, Error> parse_record(std::string_view wire, const Delimiters& d,
+                                                        const ParseOptions& options = {});
+
 // Splits wire text at CR (LF tolerated) and parses it.
 [[nodiscard]] std::expected<Message, Error> parse_text(std::string_view text,
                                                        const ParseOptions& options = {});

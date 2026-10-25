@@ -56,12 +56,12 @@ mapper and microcontroller simulators.
 |---|---|---|
 | **v0.1** (done) | core: LIS01-A2 framing and link state machine, LIS02-A2 records, codec, validation, builder; CLI `frame/deframe/decode/validate` | tests in docs/spec/tests.md §2 green on GCC/Clang/MSVC, sanitizers clean |
 | **v0.2** (done) | `io` (asio: serial, TCP client/server) and `sim`: instrument and LIS roles, scenarios as YAML, query answers, fault injection | end-to-end sim↔sim over TCP and over a pty pair |
-| v0.3 | `monitor`: both directions with timestamps, decoded view, watches/triggers on fields (`R.value > 100`, `O.specimen_id == …`), export; Wireshark Lua dissector | replay of a recorded session gives identical decoded output |
+| **v0.3** (done) | `monitor`: both directions with timestamps, decoded view, watches on fields (`R.value > 100`, `O.specimen_id == …`), capture file and replay, passive tap; Wireshark Lua dissector moved to later | replay of a recorded session gives identical decoded output |
 | v0.4 | `bridge`: serial↔TCP, serial→file, TCP→file, role swap, tap mode | loss-free under the lossy-wire test |
 | v0.5 | `mapper`: SQLite → messages by declarative YAML (nested queries with own scopes, `${row.x}`/`${cfg.x}` via lexer, bound parameters, `skip_if_empty`, write-back with bound parameters, stable message control ID) | mapper acceptance list, §5 |
 | v0.6 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | v0.7 | microcontroller instrument simulators: Arduino sketch (serial, AVR) and ESP32 (Wi-Fi/TCP) playing an analyzer as LIS client | sketch talks to the PC monitor for 24 h without error |
-| later | RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
+| later | Wireshark Lua dissector; triggers that run actions on a watch hit; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
 WIP limit: no web UI before v0.3.
 

@@ -1,5 +1,5 @@
-// lisbench command line: frame, deframe, decode and validate LIS01-A2 /
-// LIS02-A2 data offline.
+// lisbench command line: offline tools (frame, deframe, decode, validate),
+// the simulator and the monitor.
 
 #include <CLI/CLI.hpp>
 #include <asio.hpp>
@@ -18,6 +18,9 @@
 #include <string>
 #include <utility>
 
+#include "cmd_monitor.hpp"
+#include "common.hpp"
+#include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis01_frame.hpp"
 #include "lisbench/lis01_link.hpp"
 #include "lisbench/lis02_message.hpp"
@@ -28,60 +31,14 @@
 namespace {
 
 using namespace lisbench;
-
-// std::println needs GCC 14; this is the one stand-in until GCC 13 is dropped.
-template <typename... Args>
-void println(std::FILE* to, std::format_string<Args...> fmt, Args&&... args) {
-    const auto text = std::format(fmt, std::forward<Args>(args)...) + '\n';
-    std::fwrite(text.data(), 1, text.size(), to);
-    std::fflush(to);  // logs must be readable while a simulator runs, also when redirected
-}
-template <typename... Args>
-void println(std::format_string<Args...> fmt, Args&&... args) {
-    println(stdout, fmt, std::forward<Args>(args)...);
-}
-
-std::string read_input(const std::string& path) {
-    if (path == "-") {
-        return {std::istreambuf_iterator<char>(std::cin), std::istreambuf_iterator<char>()};
-    }
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        throw CLI::ValidationError("input", "cannot open " + path);
-    }
-    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-}
+using cli::clock_now;
+using cli::println;
+using cli::read_input;
+using cli::TextFlags;
 
 bool looks_framed(std::string_view data) {
     return data.find('\x02') != std::string_view::npos;
 }
-
-struct TextFlags {
-    std::string charset{"latin1"};
-    std::string non_ascii{"ascii-hex"};
-    bool strict{false};
-
-    void add_to(CLI::App& cmd) {
-        cmd.add_option("--charset", charset, "Wire character set")
-            ->check(CLI::IsMember({"latin1", "utf8"}))
-            ->capture_default_str();
-        cmd.add_option("--non-ascii", non_ascii, "Non-ASCII handling when encoding")
-            ->check(CLI::IsMember({"ascii-hex", "raw", "transliterate"}))
-            ->capture_default_str();
-        cmd.add_flag("--strict", strict, "Reject unknown escapes, record types, invalid bytes");
-    }
-
-    [[nodiscard]] lis02::TextOptions options() const {
-        static const std::map<std::string, lis02::NonAscii> modes{
-            {"ascii-hex", lis02::NonAscii::ascii_hex},
-            {"raw", lis02::NonAscii::raw},
-            {"transliterate", lis02::NonAscii::transliterate},
-        };
-        return {.charset = charset == "utf8" ? lis02::Charset::utf8 : lis02::Charset::latin1,
-                .non_ascii = modes.at(non_ascii),
-                .strict = strict};
-    }
-};
 
 // Records from a file that is either plain record text or a raw capture.
 std::vector<std::string> load_records(const std::string& data, int& problems) {
@@ -283,12 +240,6 @@ std::expected<io::Fault, std::string> parse_fault(const std::string& spec) {
     return f;
 }
 
-std::string clock_now() {
-    const auto now =
-        std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now());
-    return std::format("{:%T}", now);
-}
-
 int cmd_sim(const SimFlags& flags) {
     sim::Scenario scenario;
     if (!flags.scenario.empty()) {
@@ -445,6 +396,25 @@ int run(int argc, char** argv) {
                          "on:which:do[:ms], e.g. ack:2:nak, frame:every3:corrupt");
     simulate->add_flag("--trace", sim_flags.trace, "Show every byte on the wire");
 
+    cli::MonitorFlags mon;
+    auto* monitor =
+        app.add_subcommand("monitor", "Pass traffic between two endpoints and show it decoded");
+    monitor->add_option("--a", mon.a,
+                        "Side A endpoint, e.g. tcp-listen://:15000 (the instrument connects here)");
+    monitor->add_option("--b", mon.b, "Side B endpoint, e.g. tcp://lis-host:5000");
+    monitor->add_option("--replay", mon.replay, "Replay a capture file instead of connecting");
+    monitor->add_option("--labels", mon.labels, "Names for A and B")->capture_default_str();
+    monitor->add_option("--watch", mon.watches,
+                        "Watch expression, e.g. \"R.value > 100\" (repeatable)");
+    monitor->add_option("--save", mon.save,
+                        "Append the raw traffic to a capture file (JSON lines)");
+    monitor->add_flag("--tap", mon.tap, "Only listen, do not pass bytes on (two receive lines)");
+    monitor->add_flag("--decode", mon.decode, "Show every record field by field");
+    monitor->add_flag("--verbose", mon.verbose, "Also show ENQ/ACK/EOT and every frame");
+    monitor->add_option("--slow-reply", mon.slow_reply_ms, "Report replies slower than this (ms)")
+        ->capture_default_str();
+    mon.text.add_to(*monitor);
+
     CLI11_PARSE(app, argc, argv);
     try {
         if (*frame) {
@@ -461,6 +431,13 @@ int run(int argc, char** argv) {
         }
         if (*simulate) {
             return cmd_sim(sim_flags);
+        }
+        if (*monitor) {
+            if (mon.replay.empty() && (mon.a.empty() || mon.b.empty())) {
+                cli::println(stderr, "monitor: give --a and --b, or --replay");
+                return 2;
+            }
+            return cli::cmd_monitor(mon);
         }
     } catch (const CLI::Error& e) {
         return app.exit(e);

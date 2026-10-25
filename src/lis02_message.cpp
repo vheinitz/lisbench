@@ -124,6 +124,18 @@ void Record::trim() {
     }
 }
 
+std::expected<Record, Error> parse_record(std::string_view wire, const Delimiters& d,
+                                          const ParseOptions& options) {
+    if (!wire.empty() && wire.front() == 'H') {
+        auto own = delimiters_from_header(wire);
+        if (!own) {
+            return std::unexpected(Error{.record = 0, .text = own.error().text});
+        }
+        return parse_record(wire, 0, *own, options);
+    }
+    return parse_record(wire, 0, d, options);
+}
+
 std::expected<Message, Error> parse(std::span<const std::string> records,
                                     const ParseOptions& options) {
     Message message;

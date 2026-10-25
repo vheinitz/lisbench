@@ -39,11 +39,13 @@ endif()
 
 add_library(lisbench_core
   src/lis01_frame.cpp
+  src/lis01_decoder.cpp
   src/lis01_link.cpp
   src/lis02_codec.cpp
   src/lis02_message.cpp
   src/lis02_records.cpp
   src/printable.cpp
+  src/watch.cpp
 )
 add_library(lisbench::core ALIAS lisbench_core)
 target_include_directories(lisbench_core PUBLIC include)
@@ -52,6 +54,7 @@ target_link_libraries(lisbench_core PRIVATE lisbench_warnings)
 add_library(lisbench_io
   src/io/endpoint.cpp
   src/io/faults.cpp
+  src/io/relay.cpp
   src/io/session.cpp
 )
 add_library(lisbench::io ALIAS lisbench_io)
@@ -64,8 +67,15 @@ add_library(lisbench_sim
 add_library(lisbench::sim ALIAS lisbench_sim)
 target_link_libraries(lisbench_sim PUBLIC lisbench::io PRIVATE lisbench_warnings yaml-cpp::yaml-cpp)
 
-add_executable(lisbench apps/lisbench/main.cpp)
-target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
+add_library(lisbench_monitor
+  src/monitor/monitor.cpp
+  src/monitor/capture.cpp
+)
+add_library(lisbench::monitor ALIAS lisbench_monitor)
+target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)
+
+add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp)
+target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)
   enable_testing()

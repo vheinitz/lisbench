@@ -273,9 +273,9 @@ asio::ip::tcp::acceptor make_acceptor(const asio::any_io_executor& executor, con
 }
 
 // The acceptor is owned by the caller, who awaits this right away.
-asio::awaitable<Stream> accept(
-    asio::ip::tcp::acceptor&
-        acceptor) {  // NOLINT(cppcoreguidelines-avoid-reference-coroutine-parameters)
+// NOLINTBEGIN(cppcoreguidelines-avoid-reference-coroutine-parameters)
+asio::awaitable<Stream> accept(asio::ip::tcp::acceptor& acceptor) {
+    // NOLINTEND(cppcoreguidelines-avoid-reference-coroutine-parameters)
     auto socket = co_await acceptor.async_accept(asio::use_awaitable);
     socket.set_option(asio::ip::tcp::no_delay{true});
     co_return Stream{std::move(socket)};

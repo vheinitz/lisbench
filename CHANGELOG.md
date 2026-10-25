@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 – 2026-10-25
+
+- `lisbench monitor`: relay between two endpoints (or passive tap) with live
+  decoding of both directions, statistics, slow replies, transfers without L,
+  watch expressions on fields, capture files (JSON lines) and replay.
+- Core: `lis01::StreamDecoder` (passive decoder; `deframe` now uses it),
+  `lis02::parse_record`, watch expressions.
+
 ## 0.2.0 – 2026-10-25
 
 - `lisbench sim`: instrument or LIS simulator over TCP (client/server) and

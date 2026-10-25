@@ -83,15 +83,4 @@ enum class FrameError : std::uint8_t {
 [[nodiscard]] std::expected<Frame, FrameError> decode(bytes_view raw,
                                                       std::size_t max_text = max_text_size);
 
-// Reassembles records from a captured byte stream of one direction (for
-// example a sender's output recorded by a tap). Handshake bytes are skipped,
-// a repeated frame after a lost ACK is dropped, and every irregularity is
-// reported instead of being silently fixed.
-struct Capture {
-    std::vector<bytes> records{};  // without terminating CR
-    std::vector<std::string> problems{};
-};
-
-[[nodiscard]] Capture deframe(bytes_view stream, std::size_t max_text = max_text_size);
-
 }  // namespace lisbench::lis01

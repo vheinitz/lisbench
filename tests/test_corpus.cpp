@@ -6,6 +6,7 @@
 #include <iterator>
 #include <ranges>
 
+#include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis01_frame.hpp"
 #include "lisbench/lis01_link.hpp"
 #include "lisbench/lis02_message.hpp"
