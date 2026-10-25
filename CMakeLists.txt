@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(lisbench VERSION 0.6.3 LANGUAGES C CXX)
+project(lisbench VERSION 0.6.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -64,6 +64,7 @@ target_link_libraries(lisbench_io PUBLIC lisbench::core asio PRIVATE lisbench_wa
 add_library(lisbench_sim
   src/sim/scenario.cpp
   src/sim/runner.cpp
+  src/sim/profile.cpp
 )
 add_library(lisbench::sim ALIAS lisbench_sim)
 target_link_libraries(lisbench_sim PUBLIC lisbench::io PRIVATE lisbench_warnings yaml-cpp::yaml-cpp)
@@ -86,7 +87,8 @@ target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warn
 
 add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp
   apps/lisbench/cmd_map.cpp)
-target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}"
+                                           LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
 target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)

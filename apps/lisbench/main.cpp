@@ -256,6 +256,7 @@ struct SimFlags {
     std::vector<std::string> faults;
     bool trace{false};
     bool fast_timing{false};
+    std::string profile;
 };
 
 // "ack:2:nak", "frame:every3:corrupt", "ack:all:delay:20000"
@@ -342,6 +343,15 @@ int cmd_sim(const SimFlags& flags) {
         }
     }
 
+    if (!flags.profile.empty()) {
+        const auto p = sim::load_profile(flags.profile, cli::profile_search_path());
+        if (!p) {
+            println(stderr, "sim: --profile: {}", p.error());
+            return 2;
+        }
+        sim::apply(*p, scenario.timing);
+        println("{} [sim] profile {} ({} {})", clock_now(), p->id, p->vendor, p->model);
+    }
     if (flags.fast_timing) {
         // Keep the contention rule of the scenario, replace the durations.
         const auto winner = scenario.timing.contention_winner;
@@ -457,6 +467,8 @@ int run(int argc, char** argv) {
     simulate->add_option("--fault", sim_flags.faults,
                          "on:which:do[:ms], e.g. ack:2:nak, frame:every3:corrupt");
     simulate->add_flag("--trace", sim_flags.trace, "Show every byte on the wire");
+    simulate->add_option("--profile", sim_flags.profile,
+                         "Instrument profile (id or profile.yaml): contention rule, frame length");
     simulate->add_flag("--fast-timing", sim_flags.fast_timing,
                        "Short timeouts (2 s reply, 4 s receive, 1 s busy) for tests against a "
                        "device built with LISDEV_FAST_TEST; not LIS01-A2");
@@ -516,6 +528,12 @@ int run(int argc, char** argv) {
     map->add_flag("--keep-going", map_flags.keep_going, "Continue after a failed message");
 
     CLI11_PARSE(app, argc, argv);
+    for (auto* t : {&text, &mon.text}) {
+        if (auto r = t->resolve(); !r) {
+            cli::println(stderr, "--profile: {}", r.error());
+            return 2;
+        }
+    }
     try {
         if (*frame) {
             return cmd_frame(input, raw);

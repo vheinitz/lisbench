@@ -63,6 +63,7 @@ mapper and microcontroller simulators.
 | v0.6.1 (done) | first instrument profile (Cepheid GeneXpert, from the public specification); local escape `Z` as UTF-16; configurable contention winner; link check in the monitor | examples and scenarios of every profile parsed and loaded in CI |
 | v0.6.2 (done) | first hardware run (Uno-compatible board, 9600 baud): link re-acknowledges a repeated ENQ; INCOMPLETE shown in `sim`; readable `--trace` | normal, NAK, ENQ-NAK and timeout cases on the board |
 | v0.6.3 (done) | triggers on watch hits (`exec` with the hit in the environment, `mark` in the capture, `stop`); fast test timing for board tests; serial backlog dropped on open | trigger, command queue and capture tests; on the board: exec, mark, stop, and no stale burst after a minute without listener |
+| v0.6.4 (done) | `--profile <id>` for decode, validate, monitor and sim: text options, frame length and contention rule from `profile.yaml` (U8, first part) | profile tests; GeneXpert example decoded with `\Z` escapes by profile alone |
 | v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 

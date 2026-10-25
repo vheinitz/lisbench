@@ -54,8 +54,9 @@ a patient ID alone goes out as a query for all (§1.9.4).
 - Escapes use the escape delimiter `\`: `\F\ \S\ \R\ \E\`, hex `\Xhh..\`.
   `\H\` and `\N\` (highlighting) are ignored by the instrument.
 - Characters outside the code page are sent as `\Z` + UTF-16 code units in
-  hex, e.g. `\Z03B2\` for β (§4.4.4). Read them with
-  `--local-escape utf16-hex` (CLI) or `local_escape: utf16-hex` (mapper).
+  hex, e.g. `\Z03B2\` for β (§4.4.4). Read them with `--profile
+  cepheid-genexpert` or `--local-escape utf16-hex` (CLI), or
+  `local_escape: utf16-hex` (mapper).
 - lisbench's `latin1` is ISO 8859-1. If the instrument uses Windows-1252,
   bytes 0x80–0x9F (€, „ …) differ.
 
@@ -100,7 +101,7 @@ a patient ID alone goes out as a query for all (§1.9.4).
 
 | File | What |
 |---|---|
-| `profile.yaml` | machine-readable summary (not yet read by lisbench) |
+| `profile.yaml` | machine-readable summary; `--profile cepheid-genexpert` applies charset, escapes and frame length |
 | `lis.yaml` | `lisbench sim` scenario: a LIS for a GeneXpert, answers queries |
 | `instrument.yaml` | `lisbench sim` scenario: plays a GeneXpert towards a LIS under test |
 | `examples/query-all.astm` | instrument queries all orders |
@@ -110,7 +111,7 @@ a patient ID alone goes out as a query for all (§1.9.4).
 | `examples/results.astm` | multi-result upload with Ct/EndPt values and a `\Z` escape |
 
 ```sh
-lisbench decode --local-escape utf16-hex docs/devices/cepheid-genexpert/examples/results.astm
+lisbench decode --profile cepheid-genexpert docs/devices/cepheid-genexpert/examples/results.astm
 lisbench sim docs/devices/cepheid-genexpert/lis.yaml          # terminal 1
 lisbench sim docs/devices/cepheid-genexpert/instrument.yaml   # terminal 2
 ```

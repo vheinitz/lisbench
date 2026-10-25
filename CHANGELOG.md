@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.4 – 2026-10-25
+
+- `--profile <id or path>` for `decode`, `validate`, `monitor` and `sim`:
+  charset, non-ASCII mode, local escape, frame length and contention rule
+  come from `docs/devices/<id>/profile.yaml` (search path `$LISBENCH_DEVICES`,
+  then the source tree). Options given on the command line win.
+
 ## 0.6.3 – 2026-10-25
 
 - `monitor --trigger "WATCH => ACTION"`: `exec CMD` runs a command with the

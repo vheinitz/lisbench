@@ -131,6 +131,9 @@ private:
 int cmd_monitor(const MonitorFlags& flags) {
     monitor::Options options;
     options.text = flags.text.options();
+    if (flags.text.loaded) {
+        options.max_text = flags.text.loaded->max_text.value_or(options.max_text);
+    }
     options.slow_reply = std::chrono::milliseconds{flags.slow_reply_ms};
     {
         std::vector<std::string> labels;
