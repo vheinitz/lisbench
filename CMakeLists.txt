@@ -31,7 +31,9 @@ else()
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(lisbench_warnings INTERFACE
       -Wno-error=stringop-overflow -Wno-error=stringop-overread
-      -Wno-error=free-nonheap-object -Wno-error=array-bounds)
+      -Wno-error=free-nonheap-object -Wno-error=array-bounds
+      # GCC 14 at -O2 pairs asio's coroutine frame operator new/delete wrongly.
+      -Wno-error=mismatched-new-delete)
   endif()
 endif()
 
