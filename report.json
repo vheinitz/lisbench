@@ -1,0 +1,114 @@
+[
+  {
+    "detail": "5 frames acknowledged",
+    "id": "TR01",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "accepts a valid message, every frame answered with ACK",
+    "verdict": "pass"
+  },
+  {
+    "detail": "NAK",
+    "id": "TR02",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "rejects a frame with a wrong checksum with NAK",
+    "verdict": "pass"
+  },
+  {
+    "detail": "frame number 3 answered with NAK",
+    "id": "TR03",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "rejects a frame with an unexpected frame number with NAK",
+    "verdict": "pass"
+  },
+  {
+    "detail": "repeated frame acknowledged",
+    "id": "TR04",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "accepts a repeated frame (lost ACK) with ACK",
+    "verdict": "pass"
+  },
+  {
+    "detail": "15 frames, numbers wrapped",
+    "id": "TR05",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "accepts ETB frames, 240 characters of text and frame numbers 7 -> 0",
+    "verdict": "pass"
+  },
+  {
+    "detail": "largest of 79 reply times: 0 ms (limit 15000 ms)",
+    "id": "TR06",
+    "level": "shall",
+    "measured_ms": 0,
+    "purpose": "answers ENQ and frames within the sender's reply timeout",
+    "verdict": "pass"
+  },
+  {
+    "detail": "note: accepted the frame (should be refused)",
+    "id": "TR07",
+    "level": "should",
+    "measured_ms": null,
+    "purpose": "rejects a frame with a restricted character (LF) in its text",
+    "verdict": "pass"
+  },
+  {
+    "detail": "24 frames checked",
+    "id": "TS01",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "sends well-formed frames (checksum, numbers, length, ETB/ETX, CR LF)",
+    "verdict": "pass"
+  },
+  {
+    "detail": "frame 1 repeated",
+    "id": "TS02",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "repeats a frame answered with NAK, with the same frame number",
+    "verdict": "pass"
+  },
+  {
+    "detail": "EOT after 6 transmissions",
+    "id": "TS03",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "gives up with EOT after six transmissions of a refused frame",
+    "verdict": "pass"
+  },
+  {
+    "detail": "EOT after 15000 ms (nominal 15000 ms)",
+    "id": "TS04",
+    "level": "shall",
+    "measured_ms": 15000,
+    "purpose": "gives up with EOT when a frame is not answered in time",
+    "verdict": "pass"
+  },
+  {
+    "detail": "next ENQ after 10000 ms (at least 10000 ms)",
+    "id": "TS05",
+    "level": "shall",
+    "measured_ms": 10000,
+    "purpose": "waits the busy time before the next ENQ after ENQ was answered with NAK",
+    "verdict": "pass"
+  },
+  {
+    "detail": "backed off and accepted the tester's message",
+    "id": "TS06",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "resolves contention (ENQ answered with ENQ) by its role",
+    "verdict": "pass"
+  },
+  {
+    "detail": "continued after the interrupt (4 frames, permitted)",
+    "id": "TS07",
+    "level": "shall",
+    "measured_ms": null,
+    "purpose": "handles a receiver interrupt (frame answered with EOT) as permitted",
+    "verdict": "pass"
+  }
+]

@@ -406,7 +406,8 @@ private:
             ++frames_seen_;
             frame_problems_.emplace_back(lis01::to_string(bad->error));
         } else if (const auto* p = std::get_if<lis01::dec::Problem>(&e)) {
-            if (p->text.starts_with("frame number") || p->text.starts_with("STX inside")) {
+            if (p->text.starts_with("frame number") || p->text.starts_with("STX inside") ||
+                p->text.starts_with("restricted character")) {
                 frame_problems_.push_back(p->text);
             }
         }

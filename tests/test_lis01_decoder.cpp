@@ -85,3 +85,32 @@ TEST_CASE("decoder flags retransmissions, bad frames and broken records") {
         CHECK(of<dec::FrameBad>(e2).size() == 1);
     }
 }
+
+TEST_CASE("decoder notes restricted characters in frame text but keeps the frame") {
+    StreamDecoder d;
+    std::vector<DecoderEvent> ev;
+    bytes s{ctl::enq};
+    const auto f = frame(1,
+                         "C|1|I|a\nb\x11"
+                         "c\r");
+    s.insert(s.end(), f.begin(), f.end());
+    d.feed(s, ev);
+    const auto problems = of<dec::Problem>(ev);
+    REQUIRE(problems.size() == 1);
+    CHECK(problems[0].text.starts_with("restricted character 0x0A"));
+    CHECK(of<dec::FrameOk>(ev).size() == 1);
+    CHECK(of<dec::Record>(ev).size() == 1);
+}
+
+TEST_CASE("restricted characters of LIS01-A2") {
+    for (const unsigned c : {0x01U, 0x02U, 0x03U, 0x04U, 0x05U, 0x06U, 0x0AU, 0x10U, 0x11U, 0x12U,
+                             0x13U, 0x14U, 0x15U, 0x16U, 0x17U}) {
+        CHECK(is_restricted(std::byte(c)));
+    }
+    for (const unsigned c : {0x09U, 0x0DU, 0x20U, 0x41U, 0x7CU, 0xE9U}) {
+        CHECK_FALSE(is_restricted(std::byte(c)));
+    }
+    CHECK(first_restricted(to_bytes("abc")) == std::nullopt);
+    CHECK(first_restricted(to_bytes("ab\x05"
+                                    "c")) == 2U);
+}

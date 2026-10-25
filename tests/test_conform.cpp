@@ -83,6 +83,7 @@ TEST_CASE("conform: lisbench's own LIS passes") {
     for (const auto& r : results) {
         INFO(r.id << ": " << r.detail);
         CHECK(r.verdict == conform::Verdict::pass);
+        CHECK_FALSE(r.detail.contains("note"));  // also every "should" kept
     }
 }
 
@@ -112,6 +113,7 @@ TEST_CASE("conform: lisbench's own instrument passes") {
     for (const auto& r : results) {
         INFO(r.id << ": " << r.detail);
         CHECK(r.verdict == conform::Verdict::pass);
+        CHECK_FALSE(r.detail.contains("note"));  // also every "should" kept
     }
 }
 
@@ -185,6 +187,7 @@ TEST_CASE("conform: the microcontroller instrument (devsim/LisDevice) passes") {
     for (const auto& r : results) {
         INFO(r.id << ": " << r.detail);
         CHECK(r.verdict == conform::Verdict::pass);
+        CHECK_FALSE(r.detail.contains("note"));  // also every "should" kept
     }
 }
 

@@ -291,6 +291,17 @@ private:
         }
     }
 
+    // LIS01-A2 does not allow SOH..ACK, LF, DLE..ETB in frame text.
+    bool has_restricted() const {
+        for (size_t i = 1; i + 1 < rx_terminator_; ++i) {
+            const uint8_t c = rx_[i];
+            if ((c >= 0x01 && c <= 0x06) || c == 0x0A || (c >= 0x10 && c <= 0x17)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // rx_ holds FN text terminator C1 C2 CR LF (STX not stored).
     void check_frame() {
         uint8_t sum = 0;
@@ -302,7 +313,7 @@ private:
         const uint8_t fn_char = rx_[0];
         const bool well_formed = hi >= 0 && lo >= 0 && rx_[rx_terminator_ + 2] == ctl::cr &&
                                  rx_[rx_terminator_ + 3] == ctl::lf && fn_char >= '0' && fn_char <= '7';
-        if (!well_formed || static_cast<uint8_t>((hi << 4) | lo) != sum) {
+        if (!well_formed || static_cast<uint8_t>((hi << 4) | lo) != sum || has_restricted()) {
             put(ctl::nak);
             return;
         }

@@ -237,3 +237,28 @@ TEST_CASE("devsim: contention, the instrument goes first and the LIS gets its tu
     CHECK(b.lis_text().front() == "H|\\^&|||instrument");
     CHECK(b.received_records.front() == "H|\\^&|||LIS");
 }
+
+TEST_CASE("devsim: a frame with a restricted character in its text is refused") {
+    Bench b;
+    lisdev::Device device{b.callbacks()};
+    const auto feed = [&](const bytes& data) {
+        for (const auto x : data) {
+            device.on_byte(std::to_integer<std::uint8_t>(x), b.now);
+        }
+    };
+    const auto reply = [&] {
+        REQUIRE(b.to_lis.size() == 1);
+        const auto r = b.to_lis.front();
+        b.to_lis.clear();
+        return r;
+    };
+    feed({lis01::ctl::enq});
+    CHECK(reply() == 0x06);
+    feed(lis01::encode({.number = 1, .last = true, .text = to_bytes("H|\\^&\n|LIS\r")}));
+    CHECK(reply() == 0x15);  // NAK: LF is restricted in frame text
+    CHECK(b.received_records.empty());
+    feed(lis01::encode({.number = 1, .last = true, .text = to_bytes("H|\\^&|LIS\r")}));
+    CHECK(reply() == 0x06);
+    REQUIRE(b.received_records.size() == 1);
+    CHECK(b.received_records[0] == "H|\\^&|LIS");
+}

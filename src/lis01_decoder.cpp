@@ -81,6 +81,13 @@ void StreamDecoder::complete_frame(std::vector<DecoderEvent>& out) {
             dec::FrameOk{.offset = frame_start_, .frame = std::move(*frame), .repeated = true});
         return;
     }
+    if (const auto at = first_restricted(frame->text)) {
+        // Kept: a capture shows what was sent; the receiver is expected to refuse it.
+        out.emplace_back(
+            dec::Problem{.offset = frame_start_ + 2 + *at,
+                         .text = std::format("restricted character 0x{:02X} in frame text",
+                                             std::to_integer<unsigned>(frame->text[*at]))});
+    }
     if (frame->number != expected_) {
         out.emplace_back(dec::Problem{.offset = frame_start_,
                                       .text = std::format("frame number {} where {} was expected",

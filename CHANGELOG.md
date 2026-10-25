@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.6 – 2026-10-25
+
+- Receivers refuse a frame with a restricted character in its text (SOH to
+  ACK, LF, DLE to ETB) with NAK, as LIS01-A2 expects: `lis01::Link` (used
+  by `sim`, `map` and `conform`'s reference IUTs) and `devsim/LisDevice`. Found by `lisbench conform`
+  TR07, which lisbench itself had passed only with a note. An instrument
+  that puts LF into frames is now refused; tell us if one needs a tolerance.
+- Monitor/decoder: such a frame is shown with a note, not hidden.
+- `conform` TS01 counts restricted characters in the IUT's frames.
+
 ## 0.6.5 – 2026-10-25
 
 - `lisbench conform --iut computer|instrument --endpoint URI`: LIS01-A2

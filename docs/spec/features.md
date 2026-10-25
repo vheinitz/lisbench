@@ -65,6 +65,7 @@ mapper and microcontroller simulators.
 | v0.6.3 (done, in v0.6.4) | triggers on watch hits (`exec` with the hit in the environment, `mark` in the capture, `stop`); fast test timing for board tests; serial backlog dropped on open | trigger, command queue and capture tests; on the board: exec, mark, stop, and no stale burst after a minute without listener |
 | v0.6.4 (done) | `--profile <id>` for decode, validate, monitor and sim: text options, frame length and contention rule from `profile.yaml` (U8, first part) | profile tests; GeneXpert example decoded with `\Z` escapes by profile alone |
 | v0.6.5 (done) | `lisbench conform`: LIS01-A2 conformance test suite, 14 test cases (section 7) | own LIS, own instrument and LisDevice pass all cases; a receiver that acknowledges everything fails TR02/TR03 |
+| v0.6.6 (done) | receivers refuse restricted characters in frame text (link and LisDevice) | conform TR07 without note for all own implementations |
 | v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 

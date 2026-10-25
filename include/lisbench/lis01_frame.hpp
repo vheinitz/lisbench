@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,6 +33,22 @@ inline constexpr std::byte cr{0x0D};
 inline constexpr std::byte nak{0x15};
 inline constexpr std::byte etb{0x17};
 }  // namespace ctl
+
+// LIS01-A2 does not allow these in frame text: SOH STX ETX EOT ENQ ACK DLE
+// NAK SYN ETB LF DC1 DC2 DC3 DC4. (CR ends a record and is allowed.)
+[[nodiscard]] constexpr bool is_restricted(std::byte b) noexcept {
+    const auto v = std::to_integer<unsigned>(b);
+    return (v >= 0x01 && v <= 0x06) || v == 0x0A || (v >= 0x10 && v <= 0x17);
+}
+
+[[nodiscard]] constexpr std::optional<std::size_t> first_restricted(bytes_view text) noexcept {
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (is_restricted(text[i])) {
+            return i;
+        }
+    }
+    return std::nullopt;
+}
 
 inline constexpr std::size_t max_text_size = 240;
 inline constexpr std::size_t frame_overhead = 7;  // STX FN ETX C1 C2 CR LF

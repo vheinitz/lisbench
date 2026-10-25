@@ -283,6 +283,13 @@ void Link::on_frame(Events& out) {
         return;
     }
     auto& frame = *decoded;
+    if (const auto at = first_restricted(frame.text)) {
+        out.emplace_back(
+            ev::Warning{std::format("frame rejected: restricted character 0x{:02X} in text",
+                                    std::to_integer<unsigned>(frame.text[*at]))});
+        send(ctl::nak, out);
+        return;
+    }
     const auto previous = static_cast<std::uint8_t>((expected_fn_ + 7U) % 8U);
     if (frame.number == previous) {
         // Our ACK got lost and the sender repeated the frame.

@@ -276,6 +276,21 @@ TEST_CASE("fast test timing shortens the waits, keeps the rules") {
     CHECK(all<ev::ArmTimer>(ev)[0].after == 2s);
 }
 
+TEST_CASE("receiver: a frame with a restricted character in its text gets NAK") {
+    Link link{Role::computer};
+    Events ev;
+    feed(link, ctl::enq, ev);
+    ev.clear();
+    link.on_bytes(encode(Frame{.number = 1, .last = true, .text = to_bytes("H|\\^&\n\r")}), ev);
+    CHECK(sent(ev) == bytes{ctl::nak});
+    CHECK(all<ev::Warning>(ev).size() == 1);
+    CHECK(all<ev::RecordReceived>(ev).empty());
+    ev.clear();
+    link.on_bytes(encode(Frame{.number = 1, .last = true, .text = to_bytes("H|\\^&\r")}), ev);
+    CHECK(sent(ev) == bytes{ctl::ack});
+    CHECK(all<ev::RecordReceived>(ev).size() == 1);
+}
+
 TEST_CASE("sender: ENQ answered with NAK is retried after busy_retry") {
     Link link{Role::instrument};
     Events ev;
