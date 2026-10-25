@@ -153,6 +153,18 @@ public:
         const auto wanted = [this](std::string_view id) {
             return o_.only.empty() || std::ranges::find(o_.only, id) != o_.only.end();
         };
+        if (!co_await warm_up()) {
+            for (const auto& tc : conform::suite) {
+                if (wanted(tc.id)) {
+                    results[std::string{tc.id}] = {
+                        .id = std::string{tc.id},
+                        .verdict = Verdict::inconclusive,
+                        .detail = std::format("the IUT did not answer ENQ within {}",
+                                              ms(o_.wait_for_iut))};
+                }
+            }
+            co_return in_suite_order(std::move(results));
+        }
         using Case = asio::awaitable<Result> (Tester::*)();
         const std::array<std::pair<std::string_view, Case>, 12> active{{
             {"TR01", &Tester::tr01},
@@ -192,6 +204,11 @@ public:
             results["TS01"] = ts01();
             results["TS01"].id = "TS01";
         }
+        co_return in_suite_order(std::move(results));
+    }
+
+private:
+    std::vector<Result> in_suite_order(std::map<std::string, Result> results) {
         std::vector<Result> out;
         for (const auto& tc : conform::suite) {
             if (auto it = results.find(std::string{tc.id}); it != results.end()) {
@@ -204,10 +221,9 @@ public:
                 s.close(ec);
             },
             stream_);
-        co_return out;
+        return out;
     }
 
-private:
     // --- wire -------------------------------------------------------------
 
     asio::awaitable<std::optional<In>> next(milliseconds timeout) {
@@ -240,13 +256,41 @@ private:
     asio::awaitable<void> write(std::byte b) { co_await write(bytes{b}); }
 
     // The IUT's answer to what was just written; reply times are kept for TR06.
+    // Only ACK, NAK and EOT are answers; an ENQ is the IUT wanting to send.
     asio::awaitable<std::optional<In>> reply() {
         auto in = co_await next(o_.timing.reply_timeout * 2);
-        if (in) {
+        if (in && (is(in, ctl::ack) || is(in, ctl::nak) || is(in, ctl::eot))) {
             max_reply_ = std::max(max_reply_, since(sent_at_, in->at));
             ++replies_;
         }
         co_return in;
+    }
+
+    // Before the first case: wait until the IUT answers at all. A board that
+    // resets when its port is opened is deaf while it boots; that is not part
+    // of any test purpose and is not measured.
+    asio::awaitable<bool> warm_up() {
+        const auto until = Clock::now() + o_.wait_for_iut;
+        while (!closed_ && Clock::now() < until) {
+            co_await write(ctl::enq);
+            const auto r = co_await next(o_.timing.reply_timeout);
+            if (is(r, ctl::ack)) {
+                co_await write(ctl::eot);  // an empty transfer: a link check
+                co_return true;
+            }
+            if (is(r, ctl::nak)) {
+                co_return true;  // busy, but there
+            }
+            if (is(r, ctl::enq)) {
+                // The IUT wants to send: it is alive; take its message.
+                co_await write(ctl::ack);
+                (void)co_await receive(ack_all());
+                co_return true;
+            }
+            co_await write(ctl::eot);
+            co_await wait(o_.timing.busy_retry);
+        }
+        co_return false;
     }
 
     // LIS01-A2: the instrument; a profile may state otherwise (Timing::contention_winner).
@@ -283,6 +327,12 @@ private:
                 co_return true;
             }
             if (is(r, ctl::nak)) {
+                co_await wait(o_.timing.busy_retry);
+                continue;
+            }
+            if (!r) {
+                // No answer: end the attempt and try again, as a sender may.
+                co_await write(ctl::eot);
                 co_await wait(o_.timing.busy_retry);
                 continue;
             }

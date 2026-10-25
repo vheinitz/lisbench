@@ -47,7 +47,8 @@ std::map<std::string, conform::Result> by_id(const std::vector<conform::Result>&
 // Accepts the tester's connection and hands the stream to `iut`; the tester
 // connects and runs the suite.
 template <typename Iut>
-std::vector<conform::Result> run_against(conform::Iut role, Iut iut) {
+std::vector<conform::Result> run_against(conform::Iut role, Iut iut,
+                                         std::vector<std::string> only = {}) {
     asio::io_context io;
     auto acceptor = io::make_acceptor(io.get_executor(),
                                       io::Tcp{.host = "127.0.0.1", .port = 0, .listen = true});
@@ -58,7 +59,9 @@ std::vector<conform::Result> run_against(conform::Iut role, Iut iut) {
         io,
         [&]() -> asio::awaitable<void> {
             auto stream = co_await io::connect(io::Tcp{.host = "127.0.0.1", .port = port});
-            results = co_await conform::run(std::move(stream), options(role), {});
+            auto o = options(role);
+            o.only = only;
+            results = co_await conform::run(std::move(stream), o, {});
             io.stop();
         },
         [](const std::exception_ptr& e) { REQUIRE_FALSE(e); });
@@ -189,6 +192,38 @@ TEST_CASE("conform: the microcontroller instrument (devsim/LisDevice) passes") {
         CHECK(r.verdict == conform::Verdict::pass);
         CHECK_FALSE(r.detail.contains("note"));  // also every "should" kept
     }
+}
+
+TEST_CASE("conform: an IUT that is still starting up is waited for, not judged") {
+    // Like an Arduino that resets when the port is opened: nothing for a while.
+    const auto results =
+        run_against(conform::Iut::computer,
+                    [](asio::ip::tcp::acceptor& a) {
+                        return [](asio::ip::tcp::acceptor& acc) -> asio::awaitable<void> {
+                            auto stream = co_await io::accept(acc);
+                            asio::steady_timer boot{co_await asio::this_coro::executor, 1500ms};
+                            co_await boot.async_wait(asio::use_awaitable);
+                            // Bytes sent during the boot are lost, as with a real reset.
+                            std::get<asio::ip::tcp::socket>(stream).non_blocking(true);
+                            std::array<std::byte, 256> junk{};
+                            std::error_code ec;
+                            while (std::get<asio::ip::tcp::socket>(stream).read_some(
+                                       asio::buffer(junk), ec) > 0) {
+                            }
+                            std::get<asio::ip::tcp::socket>(stream).non_blocking(false);
+                            io::Session session{
+                                std::move(stream),
+                                {.role = lis01::Role::computer, .timing = quick(), .faults = {}},
+                                {}};
+                            co_await session.run();
+                        }(a);
+                    },
+                    {"TR01", "TR06"});
+    const auto r = by_id(results);
+    REQUIRE(r.size() == 2);
+    INFO(r.at("TR01").detail << " / " << r.at("TR06").detail);
+    CHECK(r.at("TR01").verdict == conform::Verdict::pass);
+    CHECK(r.at("TR06").verdict == conform::Verdict::pass);
 }
 
 TEST_CASE("conform: a receiver that acknowledges everything fails TR02 and TR03") {

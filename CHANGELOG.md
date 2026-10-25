@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `conform`: before the first case the tester waits until the IUT answers
+  at all (a board that resets when its port is opened is deaf for a second
+  or two); an unanswered ENQ is ended with EOT and tried again; TR06 counts
+  only ACK, NAK and EOT as replies. Found on the Uno: TR01/TR02 were
+  inconclusive and TR06 failed with the boot time; now 14 of 14 pass, twice.
+- ESP32 sketch: Wi-Fi status every 2 s while not connected (network not
+  found, password, ...), address and signal once connected; optional
+  `WIFI_TX_POWER` for small ESP32-C3 boards.
+- Spec section 9: sessions (session files, shared test catalogue, LIS and
+  instrument simulators with order book and order-result matching).
+
 ## 0.7.1 – 2026-10-25
 
 - First release with the web UI of 0.7.0 (see below).

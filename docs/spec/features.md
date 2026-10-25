@@ -68,7 +68,8 @@ mapper and microcontroller simulators.
 | v0.6.6 (done) | receivers refuse restricted characters in frame text (link and LisDevice) | conform TR07 without note for all own implementations |
 | **v0.7.0** (done) | web UI (`lisbench serve`, section 8): monitor, captures, conformance test, simulator; own HTTP/SSE server on asio, pages built into the binary | HTTP parser and limits unit-tested; API end to end (monitor between simulators, capture, conformance, simulator, bad file names, double start); checked in Chrome |
 | v0.7.1 | Debian packages arm64/armhf/amd64 (Debian 13), systemd service, release assets from CI | built and tested in CI (ARM under qemu), amd64 installed, served and purged in CI; on a real Pi 3B+ still to be confirmed |
-| v0.7.x | library export (`find_package`) | |
+| v0.8 to v0.10 | sessions: session files, shared test catalogue, LIS and instrument simulators as their own session types with order book and order-result matching, several instances, home tab; then separate order/result ports, monitor/conform sessions, export editor (section 9) | section 9.9 |
+| later | library export (`find_package`) | |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
 WIP limit: no web UI before v0.3.
@@ -188,3 +189,190 @@ Acceptance: HTTP parser and limits unit-tested; the API driven end-to-end
 from a test (monitor between two simulators, conformance against the own
 LIS, capture listing); runs on a Raspberry Pi 3B+ (Debian 13), reachable on
 the LAN.
+
+## 9. Sessions (v0.8 to v0.10)
+
+Added 2026-10-25. Request: "pro session eine configdatei … in Webview
+sollte sessionsmanagement implementiert werden, nicht pro mode, sondern auch
+instanzen im Gleichen mode könnten mehrmals laufen … Jede Session ist ein
+Tab … Die Modis sim-gerät und sim-lis sind so was von unterschiedlich, dass
+es kein bloßes subparameter sie unterscheidet … Beim sim-LIS sollte man die
+Proben und deren results sehen, Tests zu den Proben anlegen/zuordnen, zum
+senden auf Anfragen Q – das alles tabellarisch … In webview braucht man die
+uris … nicht sehen." Decisions: "gemeinsamer Katalog, Reihenfolge passt".
+
+### 9.1 Terms
+
+- **Session**: a named configuration of one *session type* plus, while it
+  runs, its instance. Several sessions of the same type may run at once
+  (e.g. five simulated instruments).
+- **Session file**: `sessions/<name>.yaml` in the data directory. The web UI
+  edits it; `lisbench run sessions/<name>.yaml` runs it without the UI. The
+  older subcommands stay for scripts.
+- **State file**: `sessions/<name>.state.json`, written by lisbench only:
+  order book, results, counters. Kept apart so that the session file stays
+  a hand-editable configuration.
+- **Test catalogue**: `catalog.yaml` in the data directory, shared by all
+  sessions.
+- **Link**: one connection of a session, with a *role* (`main`, or `orders`
+  and `results` when a LIS uses separate ports for the two directions of
+  work).
+- **Order item**: one test for one specimen in the LIS simulator's order
+  book; it has the state machine of 9.5.
+- **Order-result matching**: assigning a received result to an order item
+  by specimen ID (O-3) and test code (fourth component of the universal test
+  ID, O-5 / R-3). A result without a matching item is an **unsolicited
+  result**; what happens to it is a policy of the LIS, not a rule of
+  LIS02-A2, which allows unsolicited results.
+
+### 9.2 Runtime
+
+One process, one event loop (asio coroutines), as in v0.7: every session
+instance is a group of coroutines; no fork, no threads (trigger commands
+excepted). A session instance has the lifecycle `stopped → starting →
+running → stopping → stopped`, or `failed` with a reason; each link reports
+`waiting` (server or port open, no partner), `connected`, `closed`. Before
+start, lisbench refuses a session whose serial port or TCP listen port is
+already used by a running session. Live data is published per session; each
+session keeps the last 5000 events in memory and can also save a capture.
+
+### 9.3 Session file
+
+```yaml
+lisbench: session/1
+name: bench-uno                 # unique, plain file name characters
+type: device                    # lis | device | monitor | export | conform
+profile: cepheid-genexpert      # optional instrument profile
+timing: lis01-a2                # lis01-a2 | fast-test
+links:
+  - role: main                  # device: main; lis: main, or orders + results
+    transport: serial           # serial | tcp-server | tcp-client
+    serial: {port: /dev/ttyUSB1, baud: 9600, data_bits: 8, parity: none,
+             stop_bits: 1, flow: none}
+  # - role: results
+  #   transport: tcp-server
+  #   tcp: {address: 0.0.0.0, port: 15001}
+device: {...}                   # 9.6, only for type device
+lis: {...}                      # 9.5, only for type lis
+```
+
+Every value is typed and checked when the file is read, with the line of
+the error; unknown keys are errors. URIs do not appear: lisbench derives the
+endpoint from `transport` and its block.
+
+### 9.4 Test catalogue
+
+```yaml
+lisbench: catalog/1
+tests:
+  - code: GLU                   # 4th component of the universal test ID
+    name: Glucose
+    kind: numeric               # numeric | qualitative
+    unit: mg/dL
+    reference: {low: 70, high: 110}
+    decimals: 0
+    simulate: {low: 60, high: 180}            # device: value range
+  - code: FLUA
+    name: Influenza A
+    kind: qualitative
+    values: [DETECTED, NOT DETECTED, INVALID] # device picks from these
+    abnormal: [DETECTED]                      # flag A when sent
+```
+
+The LIS simulator offers these codes when tests are assigned to a specimen;
+the instrument simulator uses `simulate` / `values` to produce results and
+derives the abnormal flag (R-7: `L`, `H`, `N`, `A`) from `reference` or
+`abnormal`.
+
+### 9.5 LIS simulator
+
+```yaml
+lis:
+  unsolicited: flag             # accept | flag | ignore
+  answer_queries: true          # answer Q from the order book
+  no_order_reply: y-record      # y-record (O-26 = Y) | empty (H, L only)
+  send_mode: on-demand          # on-demand (button / API) | on-connect
+```
+
+Order book: a table of specimens (specimen ID, patient ID, name, priority
+O-6) with their order items (test code from the catalogue). Results table:
+per item value, unit, flags, result status (R-9), operator, time. Both are
+edited in the UI and kept in the state file.
+
+Order item states, named after the LIS02-A2 codes where one exists:
+
+| State | Entered when |
+|---|---|
+| `new` | created in the UI |
+| `sent` | an O record with the item went out (batch, action code O-12 = `N`) |
+| `answered` | it went out as the answer to a Q for this specimen |
+| `pending` | after `sent`/`answered`; waiting for the instrument |
+| `preliminary` | a matching R with status `P` (or `I`, in instrument pending) |
+| `final` | a matching R with status `F` |
+| `corrected` | a matching R with status `C` after a final one |
+| `cannot-be-done` | a matching R with status `X` |
+| `cancelled` | the user cancelled it; an O with action code `C` went out |
+
+A result for a `new` item (never sent) counts as unsolicited. With
+`unsolicited: accept` the result creates the item in state `final` (or as
+reported) marked "unsolicited"; `flag` keeps it in a list of unmatched
+results for the user to assign or discard; `ignore` only logs it. A Q for a
+specimen without items is answered as set in `no_order_reply`.
+
+With separate `orders` and `results` links, Q in and O out use `orders`, R
+in uses `results`; with one `main` link both use it.
+
+### 9.6 Instrument simulator
+
+```yaml
+device:
+  mode: host-query              # unsolicited | host-query | batch
+  specimens: {from: counter, prefix: S-, start: 1}   # or a list of IDs
+  tests: [GLU]                  # unsolicited: tests to report per specimen
+  interval: 30s                 # next specimen after the last one finished
+  query_timeout: 60s            # host-query: no answer means no order
+  measure_time: 2s              # between order and result
+```
+
+| Mode | Per specimen |
+|---|---|
+| `unsolicited` | send H P O R L with `tests`, values from the catalogue |
+| `host-query` | send Q; on an answer with O records measure those tests and send the results; on "no order" or timeout skip it |
+| `batch` | accept orders from the LIS at any time into its own list; work through the list |
+
+Per specimen the instrument has `queued → queried → ordered | no-order |
+timed-out → measuring → reported | failed`.
+
+### 9.7 Other session types
+
+`monitor` (two links, watches, triggers without `exec`, capture), `conform`
+(one link, IUT role, cases; a run ends with a report), `export` (database
+file, mapping file, schedule `manual | every <duration>`, target link,
+send timeout and retries per message, write-back).
+
+### 9.8 Web UI
+
+- **Home tab**: running sessions (name, type, status, link states, messages
+  in/out, last activity, last problem) with start/stop/open; saved sessions;
+  **New session**: choose the type, then a typed form.
+- **One tab per opened session**, its view given by the type: LIS: order
+  book and results tables, add specimens, assign tests from the catalogue,
+  send, cancel; instrument: specimen queue with states, live log; monitor:
+  as v0.7.
+- **Forms are typed**: transport as radio buttons; serial port from the
+  list of ports found (with the USB vendor name); baud rate, data bits,
+  parity as selections; numbers with ranges; test codes from the catalogue.
+  No free text where a choice exists, no URIs.
+- **Catalogue tab**: edit the shared test catalogue.
+- **Export editor** (v0.10): open a database from the data directory, see
+  tables and columns, assign columns or constants to record fields (field
+  names from the LIS02-A2 tables), nested queries per level, preview with
+  real rows, write-back statements; saved as a mapping file of section 5.
+
+### 9.9 Releases
+
+| Release | Content | Acceptance |
+|---|---|---|
+| v0.8 | session files and state files, catalogue, session manager (several instances, port conflicts), home tab, LIS simulator (order book, item states, matching, unsolicited policy, queries), instrument simulator (`unsolicited`, `host-query`), `lisbench run`; Uno sketch with a host-query mode | unit tests of file checking, item states and matching; end to end: two instrument sessions and one LIS session on one loop, host query through to `final`; unsolicited result handled per policy; on the Uno: Q → O → R |
+| v0.9 | separate orders/results links, `batch` mode, monitor and conform as session types | LIS with two ports against an instrument with two links |
+| v0.10 | export sessions with the mapping editor and preview | a mapping built in the editor gives the same message as the hand-written file |

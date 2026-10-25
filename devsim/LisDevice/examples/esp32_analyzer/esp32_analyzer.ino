@@ -60,20 +60,48 @@ void finished(void*, lisdev::Outcome outcome) {
 lisdev::Callbacks callbacks = {nullptr, write_bytes, record_count, make_record, received, finished};
 lisdev::Device device(callbacks);
 
+const char* wifi_status_text(wl_status_t s) {
+    switch (s) {
+        case WL_NO_SSID_AVAIL: return "network not found (the ESP32-C3 has 2.4 GHz only)";
+        case WL_CONNECT_FAILED: return "connection failed (password?)";
+        case WL_CONNECTION_LOST: return "connection lost";
+        case WL_DISCONNECTED: return "not connected yet";
+        case WL_IDLE_STATUS: return "idle";
+        default: return "other";
+    }
+}
+
 }  // namespace
 
 void setup() {
     Serial.begin(115200);
     WiFi.mode(WIFI_STA);
+#ifdef WIFI_TX_POWER
+    // Some small ESP32-C3 boards only connect with reduced transmit power,
+    // e.g. #define WIFI_TX_POWER WIFI_POWER_8_5dBm in config.h.
+    WiFi.setTxPower(WIFI_TX_POWER);
+#endif
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.println("esp32-analyzer: connecting to Wi-Fi");
 }
 
 void loop() {
     const unsigned long now = millis();
+    static bool wifi_up = false;
+    static unsigned long last_report = 0;
     if (WiFi.status() != WL_CONNECTED) {
+        wifi_up = false;
+        if (now - last_report >= 2000) {
+            last_report = now;
+            Serial.printf("Wi-Fi: %s\n", wifi_status_text(WiFi.status()));
+        }
         delay(200);
         return;
+    }
+    if (!wifi_up) {
+        wifi_up = true;
+        Serial.printf("Wi-Fi connected, address %s, signal %d dBm\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI());
     }
     if (!lis.connected()) {
         if (now - last_connect >= 5000) {
