@@ -25,8 +25,6 @@ std::string printable(bytes_view data) {
             out += std::format("<{}>", control_names.at(c));
         } else if (c >= 0x7F) {
             out += std::format("<{:02X}>", c);
-        } else if (c == '<') {
-            out += "<<";  // keeps the rendering unambiguous
         } else {
             out += static_cast<char>(c);
         }

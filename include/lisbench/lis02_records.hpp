@@ -28,11 +28,11 @@ enum class RecordType : char {
 [[nodiscard]] std::string_view to_string(RecordType t) noexcept;
 
 struct RecordInfo {
-    RecordType type;
-    std::string_view name;
+    RecordType type{};
+    std::string_view name{};
     // snake_case field names, index 0 = field 1 (record type).
-    std::span<const std::string_view> fields;
-    bool has_sequence;  // field 2 is a sequence number (all but H)
+    std::span<const std::string_view> fields{};
+    bool has_sequence{};  // field 2 is a sequence number (all but H)
 };
 
 [[nodiscard]] const RecordInfo& info(RecordType t) noexcept;

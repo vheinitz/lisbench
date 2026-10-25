@@ -15,7 +15,7 @@ namespace lisbench::compat {
 // std::ranges::to<std::vector>() (GCC 14).
 template <std::ranges::input_range R>
 [[nodiscard]] auto to_vector(R&& range) {
-    std::vector<std::ranges::range_value_t<R>> out;
+    std::vector<std::ranges::range_value_t<R>> out{};
     if constexpr (std::ranges::sized_range<R>) {
         out.reserve(std::ranges::size(range));
     }

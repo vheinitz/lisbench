@@ -34,10 +34,17 @@ Limit of the standard, documented in the lossy-wire test: two bit errors in
 one frame can cancel out in the modulo-256 checksum. The test injects at most
 one error per frame.
 
-## 3. Later releases
+## 3. Simulator (v0.2)
 
-- v0.2: simulator against simulator over TCP and over a pty pair (socat);
-  scenario files as golden tests; fault injection verified from the other side.
+| Area | Test | File |
+|---|---|---|
+| Endpoints | URI parsing incl. serial options, error cases, printing | test_io.cpp |
+| Faults | nth/every selection, ACK→NAK, corrupted frame fails only its checksum, delay | test_io.cpp |
+| Scenarios | full YAML scenario, durations, errors with line numbers | test_scenario.cpp |
+| End to end | instrument ↔ LIS over TCP: upload, query answered, refused and corrupted frames repeated, dropped ACK → timeout, six NAKs → rejected | test_sim_e2e.cpp |
+| End to end | instrument ↔ LIS over two serial ports joined by pseudo terminals (Linux) | test_serial_e2e.cpp |
+
+## 4. Later releases
 - v0.3: replay of recorded sessions into the monitor gives byte-identical
   decoded output (golden files); watch expressions have a parser test suite.
 - v0.4: bridges under the lossy-wire model; throughput test.
@@ -46,7 +53,7 @@ one error per frame.
 - v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32
   simulator ↔ monitor on a Raspberry Pi.
 
-## 4. Tooling in CI
+## 5. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

@@ -8,5 +8,5 @@ TEST_CASE("printable shows controls by name and 8-bit bytes as hex") {
     CHECK(printable(to_bytes("\x02"
                              "1R|1|Ren\xE9\r\x03"
                              "AB\r\n")) == "<STX>1R|1|Ren<E9><CR><ETX>AB<CR><LF>");
-    CHECK(printable(to_bytes("a<b")) == "a<<b");
+    CHECK(printable(to_bytes("<1:80")) == "<1:80");  // readable; '<' stays as it is
 }

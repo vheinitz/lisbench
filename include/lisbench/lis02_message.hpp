@@ -56,17 +56,17 @@ struct Record {
 };
 
 struct Message {
-    Delimiters delimiters;
-    std::vector<Record> records;
+    Delimiters delimiters{};
+    std::vector<Record> records{};
 };
 
 struct Error {
-    std::size_t record;  // index in the message
-    std::string text;
+    std::size_t record{};  // index in the message
+    std::string text{};
 };
 
 struct ParseOptions {
-    TextOptions text;
+    TextOptions text{};
     // Lenient parsing keeps unknown record types and uses default delimiters
     // when the first record is not a header.
     bool strict{false};
@@ -88,9 +88,9 @@ struct ParseOptions {
 enum class Severity : std::uint8_t { warning, error };
 
 struct Issue {
-    std::size_t record;
-    Severity severity;
-    std::string text;
+    std::size_t record{};
+    Severity severity{};
+    std::string text{};
 };
 
 struct ValidateOptions {
@@ -117,8 +117,8 @@ public:
     [[nodiscard]] Message finish();
 
 private:
-    Message message_;
-    ValidateOptions options_;
+    Message message_{};
+    ValidateOptions options_{};
     bool has_header_{false};
     bool terminated_{false};
     int patients_{0};

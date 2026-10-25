@@ -6,8 +6,15 @@ add_executable(lisbench_tests
   test_corpus.cpp
   test_printable.cpp
   test_robustness.cpp
+  test_io.cpp
+  test_scenario.cpp
+  test_sim_e2e.cpp
+  test_serial_e2e.cpp
 )
-target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench_warnings Catch2::Catch2WithMain)
+target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench_warnings Catch2::Catch2WithMain)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(lisbench_tests PRIVATE util)
+endif()
 target_compile_definitions(lisbench_tests PRIVATE LISBENCH_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)

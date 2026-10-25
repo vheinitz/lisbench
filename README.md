@@ -9,7 +9,7 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.1, protocol core and command line tool.** Simulator, monitor,
+Status: **v0.2, protocol core, command line tool and simulator.** Monitor,
 bridges, mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
@@ -29,11 +29,16 @@ A spare-time project.
 - Validation of record order, hierarchy and sequence numbers; a builder that
   refuses records that do not fit instead of dropping them.
 - Reassembly of records from a raw one-direction capture.
+- Simulator for an instrument or a LIS over TCP (client or server) or a
+  serial port: scenarios in YAML (send, expect, wait), automatic answers to
+  queries, and fault injection on the wire (refuse, corrupt, drop or delay
+  ACK, NAK, ENQ, EOT or frames). See [examples/](examples/).
 
 ## Build
 
 Requires CMake ≥ 3.25 and a C++23 compiler (GCC ≥ 13, Clang ≥ 19 or MSVC 2022).
-Dependencies (CLI11, nlohmann/json, Catch2) are fetched at configure time.
+Dependencies (asio, yaml-cpp, CLI11, nlohmann/json, Catch2) are fetched at
+configure time.
 
 ```console
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -48,7 +53,13 @@ lisbench frame   FILE [--raw]       records (one per line) -> frames ENQ ... EOT
 lisbench deframe FILE               raw capture -> records, checks every frame
 lisbench decode  FILE [--json]      records or capture -> fields by name
 lisbench validate FILE              order, hierarchy, sequence numbers
+lisbench sim SCENARIO.yaml          run a simulator scenario
+lisbench sim --endpoint URI ...     the same from options (--send, --receive,
+                                    --answer-queries, --fault, --trace)
 ```
+
+Endpoints: `tcp://host:port`, `tcp-listen://:port`,
+`serial:/dev/ttyUSB0?baud=9600&data=8&parity=none&stop=1` (`serial:COM3?...` on Windows).
 
 `decode` and `validate` take `--charset latin1|utf8`, `--non-ascii
 ascii-hex|raw|transliterate` and `--strict`. Example:
@@ -66,8 +77,9 @@ $ lisbench frame tests/corpus/valid_host_query.astm
 
 Unit tests, a property test over all record lengths 0–2000, a lossy-wire
 simulation (drops and bit errors, 200 seeds) for the link, an exhaustive
-character test U+0000–U+00FF in every mode, randomised round-trip tests, and
-libFuzzer targets in `fuzz/`. CI builds with GCC 13/14, Clang 19 and MSVC,
+character test U+0000–U+00FF in every mode, randomised round-trip tests,
+simulator-against-simulator tests over TCP and over a pseudo-terminal null
+modem with injected faults, and libFuzzer targets in `fuzz/`. CI builds with GCC 13/14, Clang 19 and MSVC,
 runs ASan/UBSan, clang-tidy and the fuzzers. Details in
 [docs/spec/tests.md](docs/spec/tests.md).
 

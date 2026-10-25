@@ -1,0 +1,8 @@
+# An instrument that uploads results, asks for orders and checks the answer.
+name: instrument upload and host query
+role: instrument
+endpoint: tcp://127.0.0.1:15000
+steps:
+  - send: results.astm
+  - send: query.astm
+  - expect: {within: 30s, contains: ["O|1|"], valid: true}

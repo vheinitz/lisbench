@@ -1,0 +1,13 @@
+# Tests the error handling of a LIS: corrupted checksums, a frame that
+# arrives too late and a transfer that is given up.
+name: faulty instrument
+role: instrument
+endpoint: tcp://127.0.0.1:15000
+timing: {reply_timeout: 15s}
+faults:
+  - {on: frame, nth: 2, do: corrupt}    # LIS must answer NAK, frame is repeated
+  - {on: frame, nth: 6, do: delay, ms: 1000}
+steps:
+  - send: results.astm
+  - send: query.astm
+  - expect: {within: 30s, valid: true}

@@ -47,8 +47,8 @@ struct TextOptions {
 };
 
 struct CodecError {
-    std::size_t offset;  // byte offset in the input
-    std::string text;
+    std::size_t offset{};  // byte offset in the input
+    std::string text{};
 };
 
 // Reads the delimiters from the start of a header record ("H|\^&...").
@@ -56,8 +56,8 @@ struct CodecError {
 [[nodiscard]] std::expected<Delimiters, CodecError> delimiters_from_header(std::string_view record);
 
 struct Encoded {
-    std::string wire;
-    std::vector<char32_t> dropped;  // transliterate: characters without ASCII form
+    std::string wire{};
+    std::vector<char32_t> dropped{};  // transliterate: characters without ASCII form
 };
 
 // UTF-8 value -> wire text of one component (delimiters escaped).

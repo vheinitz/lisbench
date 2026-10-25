@@ -2,14 +2,19 @@
 // LIS02-A2 data offline.
 
 #include <CLI/CLI.hpp>
+#include <asio.hpp>
 #include <nlohmann/json.hpp>
 
+#include <chrono>
+#include <csignal>
 #include <cstdio>
+#include <expected>
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -17,6 +22,8 @@
 #include "lisbench/lis01_link.hpp"
 #include "lisbench/lis02_message.hpp"
 #include "lisbench/printable.hpp"
+#include "lisbench/sim/runner.hpp"
+#include "lisbench/sim/scenario.hpp"
 
 namespace {
 
@@ -27,6 +34,7 @@ template <typename... Args>
 void println(std::FILE* to, std::format_string<Args...> fmt, Args&&... args) {
     const auto text = std::format(fmt, std::forward<Args>(args)...) + '\n';
     std::fwrite(text.data(), 1, text.size(), to);
+    std::fflush(to);  // logs must be readable while a simulator runs, also when redirected
 }
 template <typename... Args>
 void println(std::format_string<Args...> fmt, Args&&... args) {
@@ -233,6 +241,160 @@ int cmd_validate(const std::string& input, const TextFlags& text, bool allow_ord
     return errors + problems == 0 ? 0 : 1;
 }
 
+struct SimFlags {
+    std::string scenario;
+    std::string role{"instrument"};
+    std::string endpoint;
+    std::vector<std::string> send;
+    bool receive{false};
+    std::string answer_queries;
+    bool serve{false};
+    std::vector<std::string> faults;
+    bool trace{false};
+};
+
+// "ack:2:nak", "frame:every3:corrupt", "ack:all:delay:20000"
+std::expected<io::Fault, std::string> parse_fault(const std::string& spec) {
+    std::vector<std::string> parts;
+    for (auto p : spec | std::views::split(':')) {
+        parts.emplace_back(p.begin(), p.end());
+    }
+    if (parts.size() < 3) {
+        return std::unexpected(std::format("fault '{}': expected on:which:do[:ms]", spec));
+    }
+    const auto target = io::fault_target(parts[0]);
+    const auto action = io::fault_action(parts[2]);
+    if (!target || !action) {
+        return std::unexpected(std::format("fault '{}': unknown target or action", spec));
+    }
+    io::Fault f{.target = *target, .action = *action};
+    try {
+        if (parts[1].starts_with("every")) {
+            f.every = std::stoul(parts[1].substr(5));
+        } else if (parts[1] != "all") {
+            f.nth = std::stoul(parts[1]);
+        }
+        if (f.action == io::FaultAction::delay) {
+            f.delay = std::chrono::milliseconds{parts.size() > 3 ? std::stol(parts[3]) : 20'000};
+        }
+    } catch (const std::exception&) {
+        return std::unexpected(std::format("fault '{}': bad number", spec));
+    }
+    return f;
+}
+
+std::string clock_now() {
+    const auto now =
+        std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now());
+    return std::format("{:%T}", now);
+}
+
+int cmd_sim(const SimFlags& flags) {
+    sim::Scenario scenario;
+    if (!flags.scenario.empty()) {
+        auto loaded = sim::load_scenario(flags.scenario);
+        if (!loaded) {
+            println(stderr, "{}: {}", flags.scenario, loaded.error());
+            return 2;
+        }
+        scenario = std::move(*loaded);
+    } else {
+        if (flags.endpoint.empty()) {
+            println(stderr, "sim: give a scenario file or --endpoint");
+            return 2;
+        }
+        auto endpoint = io::parse_endpoint(flags.endpoint);
+        if (!endpoint) {
+            println(stderr, "sim: {}", endpoint.error());
+            return 2;
+        }
+        scenario.name = "command line";
+        scenario.endpoint = *endpoint;
+        scenario.role =
+            flags.role == "instrument" ? lis01::Role::instrument : lis01::Role::computer;
+        scenario.serve = flags.serve;
+        for (const auto& file : flags.send) {
+            auto records = sim::read_records(file);
+            if (!records) {
+                println(stderr, "sim: {}", records.error());
+                return 2;
+            }
+            scenario.steps.emplace_back(
+                sim::SendStep{.records = std::move(*records), .source = file});
+        }
+        if (flags.receive) {
+            scenario.steps.emplace_back(sim::ExpectStep{});
+        }
+        if (!flags.answer_queries.empty()) {
+            auto records = sim::read_records(flags.answer_queries);
+            if (!records) {
+                println(stderr, "sim: {}", records.error());
+                return 2;
+            }
+            scenario.answer_queries = std::move(*records);
+        }
+        for (const auto& spec : flags.faults) {
+            auto f = parse_fault(spec);
+            if (!f) {
+                println(stderr, "sim: {}", f.error());
+                return 2;
+            }
+            scenario.faults.push_back(*f);
+        }
+    }
+
+    sim::Observers obs;
+    obs.on_info = [](const std::string& text) { println("{} [sim] {}", clock_now(), text); };
+    obs.on_step = [](const sim::StepReport& r) {
+        println("{} [step {}] {}: {}", clock_now(), r.index + 1, r.ok ? "ok" : "FAILED", r.text);
+    };
+    obs.session.on_warning = [](const std::string& text) {
+        println("{} [warn] {}", clock_now(), text);
+    };
+    obs.session.on_transfer = [](const io::Transfer& t) {
+        println("{} [recv] transfer {} ({} records{})", clock_now(),
+                t.complete ? "complete" : "INCOMPLETE", t.records.size(),
+                t.complete ? "" : ", " + t.reason);
+        for (const auto& r : t.records) {
+            println("         {}", printable(r));
+        }
+    };
+    if (flags.trace) {
+        obs.session.on_wire = [](const io::WireEvent& w) {
+            println("{} {} {}{}", clock_now(), w.direction == io::Direction::in ? "<-" : "->",
+                    printable(w.data),
+                    w.fault ? std::format("   [fault: {} {}]", io::to_string(w.fault->target),
+                                          io::to_string(w.fault->action))
+                            : "");
+        };
+    }
+
+    asio::io_context io;
+    asio::signal_set signals{io, SIGINT, SIGTERM};
+    signals.async_wait([&io](const std::error_code&, int) { io.stop(); });
+    sim::Report report;
+    asio::co_spawn(io, sim::run(scenario, obs), [&](const std::exception_ptr& e, sim::Report r) {
+        if (e) {
+            try {
+                std::rethrow_exception(e);
+            } catch (const std::exception& ex) {
+                println(stderr, "sim: {}", ex.what());
+                report.ok = false;
+            }
+        } else {
+            report = std::move(r);
+        }
+        signals.cancel();
+    });
+    io.run();
+    if (!report.steps.empty()) {
+        const auto failed =
+            std::ranges::count_if(report.steps, [](const auto& s) { return !s.ok; });
+        println("{} [sim] {} steps, {} failed", clock_now(), report.steps.size(), failed);
+    }
+    return report.ok ? 0 : 1;
+}
+
 int run(int argc, char** argv) {
     CLI::App app{"lisbench - tools for LIS01-A2 / LIS02-A2 (ASTM E1381 / E1394) interfaces"};
     app.require_subcommand(1);
@@ -263,6 +425,26 @@ int run(int argc, char** argv) {
     validate->add_flag("--allow-order-without-patient", allow_order, "Accept O directly after H");
     text.add_to(*validate);
 
+    SimFlags sim_flags;
+    auto* simulate =
+        app.add_subcommand("sim", "Simulate an instrument or a LIS on TCP or a serial port");
+    simulate->add_option("scenario", sim_flags.scenario,
+                         "Scenario file (YAML); or use the options below");
+    simulate->add_option("--role", sim_flags.role, "instrument or computer (the LIS)")
+        ->check(CLI::IsMember({"instrument", "computer"}))
+        ->capture_default_str();
+    simulate->add_option("--endpoint", sim_flags.endpoint,
+                         "tcp://host:port, tcp-listen://:port, serial:/dev/ttyUSB0?baud=9600");
+    simulate->add_option("--send", sim_flags.send, "Message file to send (repeatable)");
+    simulate->add_flag("--receive", sim_flags.receive, "Wait for one transfer after sending");
+    simulate->add_option("--answer-queries", sim_flags.answer_queries,
+                         "Reply to queries with this message file");
+    simulate->add_flag("--serve", sim_flags.serve,
+                       "With tcp-listen: accept the next connection afterwards");
+    simulate->add_option("--fault", sim_flags.faults,
+                         "on:which:do[:ms], e.g. ack:2:nak, frame:every3:corrupt");
+    simulate->add_flag("--trace", sim_flags.trace, "Show every byte on the wire");
+
     CLI11_PARSE(app, argc, argv);
     try {
         if (*frame) {
@@ -276,6 +458,9 @@ int run(int argc, char** argv) {
         }
         if (*validate) {
             return cmd_validate(input, text, allow_order);
+        }
+        if (*simulate) {
+            return cmd_sim(sim_flags);
         }
     } catch (const CLI::Error& e) {
         return app.exit(e);

@@ -44,7 +44,7 @@ using TimerId = std::uint64_t;
 
 // A message is a sequence of records, each without its terminating CR.
 struct Message {
-    std::vector<bytes> records;
+    std::vector<bytes> records{};
 };
 
 enum class Outcome : std::uint8_t {
@@ -59,30 +59,30 @@ enum class Outcome : std::uint8_t {
 
 namespace ev {
 struct Send {
-    bytes data;
+    bytes data{};
 };
 // Arm the single link timer; replaces any armed timer.
 struct ArmTimer {
-    TimerId id;
-    milliseconds after;
+    TimerId id{};
+    milliseconds after{};
 };
 struct CancelTimer {};
 // Emitted exactly once for every submitted message.
 struct SendFinished {
-    MessageId id;
-    Outcome outcome;
-    bool interrupt_requested;  // receiver answered a frame with EOT
+    MessageId id{};
+    Outcome outcome{};
+    bool interrupt_requested{};  // receiver answered a frame with EOT
 };
 struct RecordReceived {
-    bytes record;  // without terminating CR
+    bytes record{};  // without terminating CR
 };
 struct ReceiveFinished {
-    bool complete;  // ended by EOT
-    std::string reason;
+    bool complete{};  // ended by EOT
+    std::string reason{};
 };
 // Protocol deviation worth logging; the link continues.
 struct Warning {
-    std::string text;
+    std::string text{};
 };
 }  // namespace ev
 
@@ -153,25 +153,25 @@ private:
     void disarm(Events& out);
     static void send(std::byte b, Events& out);
 
-    Role role_;
-    Timing timing_;
+    Role role_{};
+    Timing timing_{};
     State state_{State::neutral};
     bool connected_{true};
     bool receiver_ready_{true};
     bool holdoff_{false};  // computer after contention
 
-    std::deque<Outgoing> queue_;
-    std::optional<Outgoing> current_;
+    std::deque<Outgoing> queue_{};
+    std::optional<Outgoing> current_{};
     MessageId next_id_{1};
 
     TimerId armed_{0};
     TimerId next_timer_{1};
 
     // Receiving.
-    bytes frame_buf_;
-    std::optional<std::size_t> terminator_at_;
+    bytes frame_buf_{};
+    std::optional<std::size_t> terminator_at_{};
     std::uint8_t expected_fn_{1};
-    bytes record_buf_;
+    bytes record_buf_{};
 };
 
 }  // namespace lisbench::lis01

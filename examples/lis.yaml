@@ -1,0 +1,7 @@
+# A LIS that accepts instruments on port 15000, logs what they send and
+# answers every query with examples/orders.astm. Runs until stopped.
+name: LIS simulator
+role: computer
+endpoint: tcp-listen://0.0.0.0:15000
+answer_queries: orders.astm
+serve: true

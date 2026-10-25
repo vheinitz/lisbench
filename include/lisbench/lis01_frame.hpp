@@ -52,7 +52,7 @@ inline constexpr std::size_t max_frame_size = max_text_size + frame_overhead;
 struct Frame {
     std::uint8_t number{1};  // 0..7
     bool last{true};         // true: ETX (record complete), false: ETB
-    bytes text;
+    bytes text{};
 
     friend bool operator==(const Frame&, const Frame&) = default;
 };
@@ -88,8 +88,8 @@ enum class FrameError : std::uint8_t {
 // a repeated frame after a lost ACK is dropped, and every irregularity is
 // reported instead of being silently fixed.
 struct Capture {
-    std::vector<bytes> records;  // without terminating CR
-    std::vector<std::string> problems;
+    std::vector<bytes> records{};  // without terminating CR
+    std::vector<std::string> problems{};
 };
 
 [[nodiscard]] Capture deframe(bytes_view stream, std::size_t max_text = max_text_size);

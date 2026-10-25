@@ -1,0 +1,7 @@
+# The static analyzer follows asio's coroutine frames and reports
+# uninitialized/null pointers inside asio/impl/awaitable.hpp that cannot
+# occur. Only these two checks are off, only for the coroutine code.
+InheritParentConfig: true
+Checks: >
+  -clang-analyzer-core.CallAndMessage,
+  -clang-analyzer-core.NullDereference
