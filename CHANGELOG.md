@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 – 2026-10-25
+
+- `lisbench map`: messages from an SQLite database through a declarative
+  YAML mapping; nested queries with named scopes, placeholders resolved by a
+  lexer, bound parameters only, `skip_if_empty`, write-back (`on_success`,
+  `on_failure`), stable message control ID, local time stamps; output to
+  stdout, TCP/serial (with the simulator's link) or files (temp + rename).
+- `--version` comes from the CMake project version.
+
 ## 0.4.0 – 2026-10-25
 
 - `lisbench bridge`: join two endpoints byte-transparently (serial <-> TCP,

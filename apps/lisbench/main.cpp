@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "cmd_map.hpp"
 #include "cmd_monitor.hpp"
 #include "common.hpp"
 #include "lisbench/lis01_decoder.hpp"
@@ -349,7 +350,7 @@ int cmd_sim(const SimFlags& flags) {
 int run(int argc, char** argv) {
     CLI::App app{"lisbench - tools for LIS01-A2 / LIS02-A2 (ASTM E1381 / E1394) interfaces"};
     app.require_subcommand(1);
-    app.set_version_flag("--version", "lisbench 0.1.0");
+    app.set_version_flag("--version", "lisbench " LISBENCH_VERSION);
 
     std::string input = "-";
     bool raw = false;
@@ -431,6 +432,22 @@ int run(int argc, char** argv) {
     record->add_option("--raw", record_flags.raw, "Raw byte file");
     record->add_flag("--serve", record_flags.serve, "Keep going after a close");
 
+    cli::MapFlags map_flags;
+    auto* map = app.add_subcommand("map", "Build messages from a database through a mapping file");
+    map->add_option("mapping", map_flags.mapping, "Mapping file (YAML)")->required();
+    map->add_option("--db", map_flags.db, "SQLite database file")->required();
+    map->add_option("--arg", map_flags.args, "Argument name=value, as ${arg.name} (repeatable)");
+    map->add_option("--cfg", map_flags.cfg, "Override a config value name=value (repeatable)");
+    map->add_option("--each", map_flags.each,
+                    "SQL: one message per result row, columns become ${arg.*}");
+    map->add_option("--to", map_flags.to,
+                    "Endpoint (tcp://..., serial:...) or file:dir/name_{unique}.astm; "
+                    "without --to the messages are only printed");
+    map->add_option("--role", map_flags.role, "instrument or computer when sending")
+        ->check(CLI::IsMember({"instrument", "computer"}))
+        ->capture_default_str();
+    map->add_flag("--keep-going", map_flags.keep_going, "Continue after a failed message");
+
     CLI11_PARSE(app, argc, argv);
     try {
         if (*frame) {
@@ -447,6 +464,9 @@ int run(int argc, char** argv) {
         }
         if (*simulate) {
             return cmd_sim(sim_flags);
+        }
+        if (*map) {
+            return cli::cmd_map(map_flags);
         }
         if (*bridge) {
             return cli::cmd_bridge(bridge_flags);

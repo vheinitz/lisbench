@@ -9,8 +9,9 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.4, protocol core, command line tool, simulator, monitor and
-bridges.** Mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
+Status: **v0.5, protocol core, command line tool, simulator, monitor,
+bridges and database mapper.** Web UI and microcontroller simulators are
+planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now
@@ -40,11 +41,15 @@ A spare-time project.
   TSH`), saves the raw traffic and replays it offline.
 - Bridges without decoding: serial ↔ TCP, TCP client ↔ server (role swap),
   and recording of one endpoint to a capture or raw file.
+- Mapper from an SQLite database to messages, described in YAML: nested
+  queries with their own scopes, bound parameters, escaping of every value,
+  records that do not fit the hierarchy are errors, write-back after
+  sending, output to TCP, serial or files. See [examples/mapper/](examples/mapper/).
 
 ## Build
 
 Requires CMake ≥ 3.25 and a C++23 compiler (GCC ≥ 13, Clang ≥ 19 or MSVC 2022).
-Dependencies (asio, yaml-cpp, CLI11, nlohmann/json, Catch2) are fetched at
+Dependencies (asio, yaml-cpp, SQLite, CLI11, nlohmann/json, Catch2) are fetched at
 configure time.
 
 ```console
@@ -68,6 +73,7 @@ lisbench monitor --a URI --b URI    pass traffic through and show it decoded
 lisbench monitor --replay FILE      the same for a saved capture
 lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
 lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)
+lisbench map MAPPING.yaml --db DB   messages from a database (--each, --arg, --to)
 ```
 
 Endpoints: `tcp://host:port`, `tcp-listen://:port`,

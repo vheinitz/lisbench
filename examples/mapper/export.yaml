@@ -1,0 +1,35 @@
+# One message per sample that has unsent results:
+#   lisbench map export.yaml --db example.db --each "SELECT DISTINCT sample FROM results WHERE sent_at IS NULL"
+mapping: 1
+config:
+  sender: lisbench-mapper
+text: {charset: latin1, non_ascii: ascii-hex}
+message:
+  - H: {message_control_id: "${message_id}", sender_name: "${cfg.sender}",
+        processing_id: P, version: LIS2-A2, timestamp: "${now}"}
+  - query: >
+      SELECT p.pid, p.last, p.first, p.birth, p.sex, s.sample, s.drawn
+      FROM samples s JOIN patients p ON p.pid = s.pid WHERE s.sample = :sample
+    as: sample
+    params: {sample: "${arg.sample}"}
+    each:
+      - P: {laboratory_patient_id: "${sample.pid}", patient_name: ["${sample.last}", "${sample.first}"],
+            birthdate: "${sample.birth}", sex: "${sample.sex}"}
+      - O: {specimen_id: "${sample.sample}", collected_at: "${sample.drawn}", report_type: F}
+      - query: >
+          SELECT test, value, unit, flag, note, operator, finished
+          FROM results WHERE sample = :sample AND sent_at IS NULL ORDER BY id
+        as: result
+        params: {sample: "${sample.sample}"}
+        each:
+          - R: {universal_test_id: ["", "", "", "${result.test}"], value: "${result.value}",
+                units: "${result.unit}", abnormal_flags: "${result.flag?}", result_status: F,
+                operator_id: "${result.operator}", completed_at: "${result.finished}"}
+          - C: {comment_source: I, comment_text: "${result.note?}", comment_type: G, skip_if_empty: true}
+  - L: {termination_code: N}
+on_success:
+  sql: UPDATE results SET sent_at = :now, error = NULL WHERE sample = :sample AND sent_at IS NULL
+  params: {now: "${now}", sample: "${arg.sample}"}
+on_failure:
+  sql: UPDATE results SET error = :error WHERE sample = :sample AND sent_at IS NULL
+  params: {error: "${error}", sample: "${arg.sample}"}

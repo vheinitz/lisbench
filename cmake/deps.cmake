@@ -41,6 +41,17 @@ FetchContent_Declare(yaml-cpp
   DOWNLOAD_EXTRACT_TIMESTAMP ON SYSTEM)
 FetchContent_MakeAvailable(yaml-cpp)
 
+# SQLite amalgamation, built as a static C library.
+FetchContent_Declare(sqlite
+  URL https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
+  URL_HASH SHA256=77823cb110929c2bcb0f5d48e4833b5c59a8a6e40cdea3936b99e199dbbe5784
+  DOWNLOAD_EXTRACT_TIMESTAMP ON SYSTEM)
+FetchContent_MakeAvailable(sqlite)
+add_library(sqlite3 STATIC ${sqlite_SOURCE_DIR}/sqlite3.c)
+target_include_directories(sqlite3 SYSTEM PUBLIC ${sqlite_SOURCE_DIR})
+target_compile_definitions(sqlite3 PRIVATE SQLITE_OMIT_LOAD_EXTENSION SQLITE_DQS=0)
+target_link_libraries(sqlite3 PUBLIC Threads::Threads)
+
 if(LISBENCH_BUILD_TESTS)
   FetchContent_Declare(Catch2
     URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.tar.gz

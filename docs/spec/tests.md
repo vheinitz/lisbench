@@ -63,14 +63,28 @@ with a live session and `monitor --replay`.
 |---|---|---|
 | Relay | 200 kB random bytes each way, written in random pieces, arrive unchanged; byte counts reported per side | test_bridge_e2e.cpp |
 
-## 6. Later releases
+## 6. Mapper (v0.5)
 
-- v0.5: the mapper acceptance list in features.md §5, each item one test,
-  against an in-memory SQLite database.
+Against an in-memory SQLite database (test_mapper.cpp), numbered as in
+features.md §5:
+
+| § 5 | Test |
+|---|---|
+| 1 | named scopes: an inner `id` does not hide the outer one; missing column and NULL are errors with line, `?` makes them optional |
+| 2 | a record outside the hierarchy aborts with its line |
+| 3 | database and configuration values with `|` and `^` are escaped; unterminated placeholder is an error; a value that looks like a placeholder is not resolved again |
+| 4 | an injected `' OR '1'='1` matches nothing (bound parameter); unbound parameter is an error |
+| 5 | mapping file with BOM; non-ASCII from the database encoded per text options |
+| 6 | `skip_if_empty` drops the comment without note, constants do not count |
+| 7 | `${now}` is 14 digits local time |
+| 8, 9 | checked with the CLI by hand: pattern without `{unique}` rejected before start, temp + rename, on_success after delivery, on_failure with the error text when the LIS is unreachable |
+
+## 7. Later releases
+
 - v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32
   simulator ↔ monitor on a Raspberry Pi.
 
-## 7. Tooling in CI
+## 8. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(lisbench VERSION 0.1.0 LANGUAGES CXX)
+project(lisbench VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,6 +67,14 @@ add_library(lisbench_sim
 add_library(lisbench::sim ALIAS lisbench_sim)
 target_link_libraries(lisbench_sim PUBLIC lisbench::io PRIVATE lisbench_warnings yaml-cpp::yaml-cpp)
 
+add_library(lisbench_mapper
+  src/mapper/template.cpp
+  src/mapper/sqlite.cpp
+  src/mapper/mapping.cpp
+)
+add_library(lisbench::mapper ALIAS lisbench_mapper)
+target_link_libraries(lisbench_mapper PUBLIC lisbench::core sqlite3 PRIVATE lisbench_warnings yaml-cpp::yaml-cpp)
+
 add_library(lisbench_monitor
   src/monitor/monitor.cpp
   src/monitor/capture.cpp
@@ -74,8 +82,10 @@ add_library(lisbench_monitor
 add_library(lisbench::monitor ALIAS lisbench_monitor)
 target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)
 
-add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp)
-target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
+add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp
+  apps/lisbench/cmd_map.cpp)
+target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}")
+target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)
   enable_testing()
