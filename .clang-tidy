@@ -15,13 +15,16 @@ Checks: >
   -modernize-use-trailing-return-type,
   -cppcoreguidelines-avoid-const-or-ref-data-members,
   -readability-braces-around-statements,
-  -readability-redundant-member-init
+  -readability-redundant-member-init,
+  -readability-qualified-auto
 # avoid-magic-numbers: protocol constants (0x7E, 240, ...) are clearer inline
 #   next to their comment than behind a name.
 # pro-bounds-constant-array-index: spans are indexed after explicit checks.
 # identifier-length: i, b, c, d are idiomatic in byte loops.
 # cognitive-complexity: the link state machine is a deliberate switch.
 # trailing-return-type: style choice, not modernization.
+# qualified-auto: it asks for 'const auto*' where libstdc++ iterators happen
+#   to be pointers; MSVC's are not, and the code stops compiling there.
 # redundant-member-init: the {} defaults are needed by GCC's
 #   -Wmissing-field-initializers when structs are built with designated
 #   initializers.

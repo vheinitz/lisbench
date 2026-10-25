@@ -193,7 +193,6 @@ constexpr std::array records{
 }  // namespace
 
 std::optional<RecordType> record_type(char c) noexcept {
-    // NOLINTNEXTLINE(readability-qualified-auto): not a pointer with every standard library
     const auto it = std::ranges::find(
         records, c, [](const RecordInfo& r) { return static_cast<char>(r.type); });
     if (it == records.end()) {

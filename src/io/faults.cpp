@@ -26,7 +26,6 @@ bool fires(const Fault& f, std::size_t occurrence) {
 }  // namespace
 
 std::optional<FaultTarget> fault_target(std::string_view name) noexcept {
-    // NOLINTNEXTLINE(readability-qualified-auto): not a pointer with every standard library
     const auto it = std::ranges::find(target_names, name);
     if (it == target_names.end()) {
         return std::nullopt;
@@ -35,7 +34,6 @@ std::optional<FaultTarget> fault_target(std::string_view name) noexcept {
 }
 
 std::optional<FaultAction> fault_action(std::string_view name) noexcept {
-    // NOLINTNEXTLINE(readability-qualified-auto): not a pointer with every standard library
     const auto it = std::ranges::find(action_names, name);
     if (it == action_names.end()) {
         return std::nullopt;

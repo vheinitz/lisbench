@@ -103,7 +103,7 @@ std::expected<Expression, std::string> parse(std::string_view text) {
         return std::unexpected(std::format("'{}': field numbers start at 2", path));
     }
 
-    const auto* op = std::ranges::find_if(
+    const auto op = std::ranges::find_if(
         operators, [&rest](const auto& o) { return rest.starts_with(o.first); });
     if (op == operators.end()) {
         return std::unexpected(std::format("'{}': unknown operator", rest));
