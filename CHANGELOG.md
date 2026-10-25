@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 – 2026-10-25
+
+- `lisbench bridge`: join two endpoints byte-transparently (serial <-> TCP,
+  client <-> server), optional capture, reconnect and accept again with `--serve`.
+- `lisbench record`: write what one endpoint sends to a capture (replayable
+  with `monitor --replay`) and/or a raw file.
+- clang-tidy: `readability-qualified-auto` off (its fix breaks MSVC builds).
+
 ## 0.3.0 – 2026-10-25
 
 - `lisbench monitor`: relay between two endpoints (or passive tap) with live

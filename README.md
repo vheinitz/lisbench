@@ -9,8 +9,8 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.3, protocol core, command line tool, simulator and monitor.**
-Bridges, mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
+Status: **v0.4, protocol core, command line tool, simulator, monitor and
+bridges.** Mapper and web UI are planned; see [docs/spec/features.md](docs/spec/features.md).
 A spare-time project.
 
 ## What works now
@@ -38,6 +38,8 @@ A spare-time project.
   NAKs, slow replies and transfers without L record, evaluates watch
   expressions on field values (`R.value > 100`, `O.universal_test_id.4 ==
   TSH`), saves the raw traffic and replays it offline.
+- Bridges without decoding: serial ↔ TCP, TCP client ↔ server (role swap),
+  and recording of one endpoint to a capture or raw file.
 
 ## Build
 
@@ -64,6 +66,8 @@ lisbench sim --endpoint URI ...     the same from options (--send, --receive,
 lisbench monitor --a URI --b URI    pass traffic through and show it decoded
                                     (--watch, --save, --decode, --verbose, --tap)
 lisbench monitor --replay FILE      the same for a saved capture
+lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
+lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)
 ```
 
 Endpoints: `tcp://host:port`, `tcp-listen://:port`,

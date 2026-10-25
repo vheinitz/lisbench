@@ -74,7 +74,7 @@ add_library(lisbench_monitor
 add_library(lisbench::monitor ALIAS lisbench_monitor)
 target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)
 
-add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp)
+add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp)
 target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)

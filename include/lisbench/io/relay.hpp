@@ -26,4 +26,7 @@ struct RelayHandlers {
 // Returns when either side is closed; the other side is closed as well.
 asio::awaitable<void> relay(Stream a, Stream b, RelayHandlers handlers, bool forward = true);
 
+// Reads one stream until it closes (recording an instrument's output).
+asio::awaitable<void> drain(Stream s, RelayHandlers handlers);
+
 }  // namespace lisbench::io

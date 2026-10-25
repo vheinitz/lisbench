@@ -59,13 +59,12 @@ saved capture give identical output.
 ## 5. Later releases
 - v0.3: replay of recorded sessions into the monitor gives byte-identical
   decoded output (golden files); watch expressions have a parser test suite.
-- v0.4: bridges under the lossy-wire model; throughput test.
 - v0.5: the mapper acceptance list in features.md §5, each item one test,
   against an in-memory SQLite database.
 - v0.7: hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32
   simulator ↔ monitor on a Raspberry Pi.
 
-## 6. Tooling in CI
+## 7. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

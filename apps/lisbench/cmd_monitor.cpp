@@ -18,23 +18,25 @@
 
 namespace lisbench::cli {
 
-namespace {
+namespace {}  // namespace
 
-asio::awaitable<io::Stream> open(io::Endpoint endpoint, std::string label) {
+asio::awaitable<io::Stream> open_endpoint(io::Endpoint endpoint, std::string label) {
     if (const auto* tcp = std::get_if<io::Tcp>(&endpoint); tcp != nullptr && tcp->listen) {
         auto acceptor = io::make_acceptor(co_await asio::this_coro::executor, *tcp);
-        println("{} [monitor] {}: waiting on {}", clock_now(), label, io::to_string(endpoint));
+        println("{} [{}] waiting on {}", clock_now(), label, io::to_string(endpoint));
         co_return co_await io::accept(acceptor);
     }
     auto stream = co_await io::connect(endpoint);
-    println("{} [monitor] {}: connected to {}", clock_now(), label, io::to_string(endpoint));
+    println("{} [{}] connected to {}", clock_now(), label, io::to_string(endpoint));
     co_return stream;
 }
 
+namespace {
+
 asio::awaitable<void> run_relay(io::Endpoint a, io::Endpoint b, std::array<std::string, 2> labels,
                                 io::RelayHandlers handlers, bool forward) {
-    auto sa = co_await open(std::move(a), labels[0]);
-    auto sb = co_await open(std::move(b), labels[1]);
+    auto sa = co_await open_endpoint(std::move(a), labels[0]);
+    auto sb = co_await open_endpoint(std::move(b), labels[1]);
     co_await io::relay(std::move(sa), std::move(sb), std::move(handlers), forward);
 }
 

@@ -55,6 +55,11 @@ asio::awaitable<void> pump(Side from, Stream& in, Stream& out, const RelayHandle
 
 }  // namespace
 
+asio::awaitable<void> drain(Stream s, RelayHandlers handlers) {
+    // The pump writes only when forwarding, so the second stream is unused.
+    co_await pump(Side::a, s, s, handlers, false);
+}
+
 asio::awaitable<void> relay(Stream a, Stream b, RelayHandlers handlers, bool forward) {
     using namespace asio::experimental::awaitable_operators;
     co_await (pump(Side::a, a, b, handlers, forward) && pump(Side::b, b, a, handlers, forward));

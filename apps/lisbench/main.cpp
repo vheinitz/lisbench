@@ -415,6 +415,22 @@ int run(int argc, char** argv) {
         ->capture_default_str();
     mon.text.add_to(*monitor);
 
+    cli::BridgeFlags bridge_flags;
+    auto* bridge =
+        app.add_subcommand("bridge", "Join two endpoints: serial<->TCP, client<->server");
+    bridge->add_option("--a", bridge_flags.a, "Endpoint A")->required();
+    bridge->add_option("--b", bridge_flags.b, "Endpoint B")->required();
+    bridge->add_flag("--serve", bridge_flags.serve,
+                     "Keep going: reconnect and accept again after a close");
+    bridge->add_option("--save", bridge_flags.save, "Append the traffic to a capture file");
+
+    cli::RecordFlags record_flags;
+    auto* record = app.add_subcommand("record", "Write what an endpoint sends to a file");
+    record->add_option("--from", record_flags.from, "Endpoint to read")->required();
+    record->add_option("--to", record_flags.to, "Capture file (JSON lines, replayable by monitor)");
+    record->add_option("--raw", record_flags.raw, "Raw byte file");
+    record->add_flag("--serve", record_flags.serve, "Keep going after a close");
+
     CLI11_PARSE(app, argc, argv);
     try {
         if (*frame) {
@@ -431,6 +447,12 @@ int run(int argc, char** argv) {
         }
         if (*simulate) {
             return cmd_sim(sim_flags);
+        }
+        if (*bridge) {
+            return cli::cmd_bridge(bridge_flags);
+        }
+        if (*record) {
+            return cli::cmd_record(record_flags);
         }
         if (*monitor) {
             if (mon.replay.empty() && (mon.a.empty() || mon.b.empty())) {
