@@ -58,6 +58,7 @@ target_link_libraries(lisbench_core PRIVATE lisbench_warnings)
 
 add_library(lisbench_io
   src/io/command.cpp
+  src/io/ports.cpp
   src/io/endpoint.cpp
   src/io/faults.cpp
   src/io/relay.cpp
@@ -120,9 +121,9 @@ add_library(lisbench_webapp
 )
 add_library(lisbench::webapp ALIAS lisbench_webapp)
 target_link_libraries(lisbench_webapp PUBLIC lisbench::web PRIVATE lisbench::monitor lisbench::sim
-  lisbench::conform lisbench_warnings nlohmann_json::nlohmann_json)
+  lisbench::conform lisbench::session lisbench_warnings nlohmann_json::nlohmann_json)
 
-set(LISBENCH_WEB_FILES index.html style.css app.js)
+set(LISBENCH_WEB_FILES index.html style.css app.js sessions.js)
 list(TRANSFORM LISBENCH_WEB_FILES PREPEND "${PROJECT_SOURCE_DIR}/web/" OUTPUT_VARIABLE LISBENCH_WEB_PATHS)
 add_custom_command(
   OUTPUT ${PROJECT_BINARY_DIR}/generated/web_assets.cpp

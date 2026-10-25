@@ -714,6 +714,10 @@ std::expected<SessionConfig, std::string> Manager::config(std::string_view name)
     if (!valid_session_name(name)) {
         return std::unexpected(std::format("'{}' is not a valid session name", name));
     }
+    std::error_code ec;
+    if (!fs::exists(session_file(name), ec)) {
+        return std::unexpected(std::format("no session {}", name));
+    }
     return load_session(session_file(name));
 }
 
@@ -872,7 +876,11 @@ std::expected<json, std::string> Manager::details(std::string_view name) const {
         j["log"] = it->second->recent_log();
         j["state"] = it->second->state();
     } else {
-        j["status"] = to_json(SessionStatus{.name = std::string{name}, .type = c->type});
+        SessionStatus s{.name = std::string{name}, .type = c->type};
+        for (const auto& l : c->links) {
+            s.links.push_back({.role = l.role, .label = l.label(), .state = LinkState::closed});
+        }
+        j["status"] = to_json(s);
         j["log"] = json::array();
         if (c->type == SessionType::lis) {
             auto book = load_book(state_file(name));

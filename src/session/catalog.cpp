@@ -1,5 +1,7 @@
 #include "lisbench/session/catalog.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <charconv>
 #include <fstream>
@@ -141,6 +143,34 @@ std::string to_yaml(const Catalog& catalog) {
     }
     out << YAML::EndSeq << YAML::EndMap;
     return std::string{out.c_str()} + "\n";
+}
+
+nlohmann::json catalog_json(const Catalog& catalog) {
+    using nlohmann::json;
+    json tests = json::array();
+    for (const auto& t : catalog.tests) {
+        json j = {{"code", t.code},
+                  {"name", t.name},
+                  {"kind", t.kind == TestDef::Kind::numeric ? "numeric" : "qualitative"},
+                  {"unit", t.unit},
+                  {"decimals", t.decimals},
+                  {"values", t.values},
+                  {"abnormal", t.abnormal}};
+        if (t.low || t.high) {
+            j["reference"] = json::object();
+            if (t.low) {
+                j["reference"]["low"] = *t.low;
+            }
+            if (t.high) {
+                j["reference"]["high"] = *t.high;
+            }
+        }
+        if (t.simulate_low && t.simulate_high) {
+            j["simulate"] = {{"low", *t.simulate_low}, {"high", *t.simulate_high}};
+        }
+        tests.push_back(std::move(j));
+    }
+    return {{"lisbench", "catalog/1"}, {"tests", std::move(tests)}};
 }
 
 std::string abnormal_flag(const TestDef& test, std::string_view value) {

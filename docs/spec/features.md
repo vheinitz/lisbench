@@ -305,10 +305,9 @@ Order item states, named after the LIS02-A2 codes where one exists:
 
 | State | Entered when |
 |---|---|
-| `new` | created in the UI |
-| `sent` | an O record with the item went out (batch, action code O-12 = `N`) |
-| `answered` | it went out as the answer to a Q for this specimen |
-| `pending` | after `sent`/`answered`; waiting for the instrument |
+| `new` | created in the UI (a separate `pending` state of the first draft is covered by `sent`/`answered`) |
+| `sent` | an O record with the item went out (batch, action code O-12 = `N`); waiting for the instrument |
+| `answered` | it went out as the answer to a Q for this specimen; waiting for the instrument |
 | `preliminary` | a matching R with status `P` (or `I`, in instrument pending) |
 | `final` | a matching R with status `F` |
 | `corrected` | a matching R with status `C` after a final one |

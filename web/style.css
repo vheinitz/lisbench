@@ -33,6 +33,8 @@
 }
 
 * { box-sizing: border-box; }
+/* display: grid/flex on a class would otherwise show hidden elements. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -156,3 +158,36 @@ table.results { border-collapse: collapse; width: 100%; background: var(--panel)
   main { padding: 12px; }
   .panel { grid-template-columns: 1fr; }
 }
+
+/* --- sessions (v0.8) ------------------------------------------------------ */
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.small { padding: 2px 8px; font-size: 12px; }
+h3 { font-size: 14px; margin: 14px 0 6px; }
+.subnav { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.subnav button.active { background: var(--neutral-bg); border-color: var(--line); }
+.subnav button { background: transparent; border-color: transparent; }
+#session-tabs { display: contents; }
+#session-tabs button { background: transparent; color: var(--text); border-color: transparent; }
+#session-tabs button.active { background: var(--neutral-bg); border-color: var(--line); }
+#session-tabs .close { margin-left: 8px; color: var(--muted); }
+#session-tabs .close:hover { color: var(--bad); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; align-items: end; }
+.radios { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.editor { display: block; margin-top: 16px; }
+.editor > * + * { margin-top: 12px; }
+.linkbox { display: grid; gap: 10px; }
+.session-head { display: grid; gap: 6px; margin-bottom: 12px; }
+.session-head h2 { margin: 0; }
+.links .link, td .link { font-size: 12.5px; }
+.item { margin: 2px 0; }
+.problem { color: var(--bad); }
+.log-box { max-height: 40vh; }
+table.results td.actions, table.results td .actions { white-space: nowrap; }
+table.edit input, table.edit select { width: 100%; min-width: 4em; padding: 3px 5px; }
+
+.badge { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--neutral-bg); white-space: nowrap; }
+.badge.running, .badge.connected, .badge.final, .badge.reported, .badge.corrected { background: var(--good-bg); color: var(--good); }
+.badge.failed, .badge.cancelled, .badge.cannot-be-done, .badge.timed-out, .badge.no-order { background: var(--bad-bg); color: var(--bad); }
+.badge.waiting, .badge.connecting, .badge.sent, .badge.answered, .badge.queried, .badge.measuring,
+.badge.preliminary, .badge.ordered, .badge.stopping { background: var(--watch); }

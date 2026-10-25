@@ -3,6 +3,9 @@
 // The shared test catalogue (docs/spec/features.md, 9.4): what tests exist,
 // how their results look, and how an instrument simulator produces them.
 
+#include <nlohmann/json_fwd.hpp>
+
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
@@ -41,6 +44,8 @@ struct Catalog {
 [[nodiscard]] std::expected<Catalog, std::string> parse_catalog(std::string_view yaml);
 [[nodiscard]] std::expected<Catalog, std::string> load_catalog(const std::filesystem::path& file);
 [[nodiscard]] std::string to_yaml(const Catalog& catalog);
+// As JSON for the web UI; parse_catalog reads it back (JSON is YAML).
+[[nodiscard]] nlohmann::json catalog_json(const Catalog& catalog);
 
 // R-7 abnormal flag for a result value: L, H or N for numbers with a
 // reference range, A or N for qualitative results; empty when unknown.

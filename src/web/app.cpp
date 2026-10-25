@@ -11,10 +11,12 @@
 
 #include "lisbench/conform/tester.hpp"
 #include "lisbench/io/faults.hpp"
+#include "lisbench/io/ports.hpp"
 #include "lisbench/io/relay.hpp"
 #include "lisbench/monitor/capture.hpp"
 #include "lisbench/monitor/monitor.hpp"
 #include "lisbench/printable.hpp"
+#include "lisbench/session/manager.hpp"
 #include "lisbench/sim/profile.hpp"
 #include "lisbench/sim/runner.hpp"
 #include "lisbench/sim/scenario.hpp"
@@ -127,7 +129,17 @@ struct App::State {
           executor{s.executor()},
           monitor_task{executor},
           sim_task{executor},
-          conform_task{executor} {}
+          conform_task{executor} {
+        if (!options.data_dir.empty()) {
+            sessions = std::make_unique<session::Manager>(
+                executor,
+                session::ManagerOptions{.data_dir = options.data_dir,
+                                        .profile_search = options.profile_search},
+                [this](std::string_view name, std::string_view kind, const json& data) {
+                    publish("session", {{"name", name}, {"kind", kind}, {"data", data}});
+                });
+        }
+    }
 
     Server& server;
     AppOptions options;
@@ -136,6 +148,7 @@ struct App::State {
     Task sim_task;
     Task conform_task;
     json last_result = nullptr;
+    std::unique_ptr<session::Manager> sessions;
 
     void publish(std::string_view event, const json& data) const {
         server.publish(event, data.dump());
@@ -519,6 +532,136 @@ struct App::State {
 
     // --- routes ---------------------------------------------------------------
 
+    [[nodiscard]] session::Manager& manager() const {
+        if (!sessions) {
+            throw std::invalid_argument("no data directory (start with --captures DIR)");
+        }
+        return *sessions;
+    }
+
+    static Response result(const std::expected<void, std::string>& r) {
+        return r ? json_response(R"({"ok":true})") : error(400, r.error());
+    }
+
+    static std::string text(const json& body, const char* key) {
+        return field<std::string>(body, key, "");
+    }
+
+    // Sessions (docs/spec/features.md, section 9).
+    void install_sessions(
+        const std::function<void(std::string, std::function<Response(const json&)>)>& post,
+        const std::function<void(std::string, std::function<Response(const Request&)>)>& get) {
+        get("/api/sessions", [this](const Request&) {
+            json list = json::array();
+            for (const auto& s : manager().list()) {
+                list.push_back(session::to_json(s));
+            }
+            return json_response(list.dump());
+        });
+        get("/api/session", [this](const Request& r) {
+            const auto name = r.query.contains("name") ? r.query.at("name") : "";
+            auto d = manager().details(name);
+            return d ? json_response(d->dump()) : error(400, d.error());
+        });
+        post("/api/session/save", [this](const json& b) {
+            // The form's JSON is a session file (JSON is YAML) and is checked like one.
+            auto c = session::parse_session(b.value("config", json::object()).dump());
+            if (!c) {
+                return error(400, c.error());
+            }
+            return result(manager().save(*c));
+        });
+        post("/api/session/delete",
+             [this](const json& b) { return result(manager().remove(text(b, "name"))); });
+        post("/api/session/start",
+             [this](const json& b) { return result(manager().start(text(b, "name"))); });
+        post("/api/session/stop", [this](const json& b) {
+            manager().stop(text(b, "name"));
+            return json_response(R"({"ok":true})");
+        });
+        get("/api/catalog", [this](const Request&) {
+            return json_response(session::catalog_json(manager().catalog()).dump());
+        });
+        post("/api/catalog/save", [this](const json& b) {
+            auto c = session::parse_catalog(b.dump());
+            if (!c) {
+                return error(400, c.error());
+            }
+            return result(manager().save_catalog(std::move(*c)));
+        });
+        get("/api/serial-ports", [](const Request&) {
+            json list = json::array();
+            for (const auto& p : io::serial_ports()) {
+                list.push_back({{"path", p.path}, {"description", p.description}});
+            }
+            return json_response(list.dump());
+        });
+        get("/api/profiles", [this](const Request&) {
+            json list = json::array();
+            std::error_code ec;
+            for (const auto& dir : options.profile_search) {
+                for (const auto& e : fs::directory_iterator{dir, ec}) {
+                    if (fs::exists(e.path() / "profile.yaml", ec)) {
+                        list.push_back(e.path().filename().string());
+                    }
+                }
+            }
+            return json_response(list.dump());
+        });
+        // LIS order book.
+        post("/api/lis/specimen", [this](const json& b) {
+            session::Specimen sp{
+                .id = text(b, "id"),
+                .patient_id = text(b, "patient_id"),
+                .patient_name = text(b, "patient_name"),
+                .priority = text(b, "priority").empty() ? 'R' : text(b, "priority").front()};
+            const auto tests = field<std::vector<std::string>>(b, "tests", {});
+            return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
+                if (auto r = book.add_specimen(sp); !r) {
+                    return r;
+                }
+                for (const auto& t : tests) {
+                    if (auto r = book.add_test(sp.id, t); !r) {
+                        return r;
+                    }
+                }
+                return std::expected<void, std::string>{};
+            }));
+        });
+        post("/api/lis/specimen/delete", [this](const json& b) {
+            const auto id = text(b, "id");
+            return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
+                return book.remove_specimen(id);
+            }));
+        });
+        post("/api/lis/test", [this](const json& b) {
+            const auto specimen = text(b, "specimen");
+            const auto test = text(b, "test");
+            return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
+                return book.add_test(specimen, test);
+            }));
+        });
+        post("/api/lis/send", [this](const json& b) {
+            return result(manager().send_orders(
+                text(b, "session"), field<std::vector<std::string>>(b, "specimens", {})));
+        });
+        post("/api/lis/cancel", [this](const json& b) {
+            return result(
+                manager().cancel_item(text(b, "session"), text(b, "specimen"), text(b, "test")));
+        });
+        post("/api/lis/unmatched", [this](const json& b) {
+            const auto index = field<std::size_t>(b, "index", 0);
+            const auto action = text(b, "action");
+            if (action != "accept" && action != "discard") {
+                return error(400, "action is accept or discard");
+            }
+            return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
+                return action == "accept" ? book.accept_unmatched(index)
+                                          : book.discard_unmatched(index);
+            }));
+        });
+    }
+
     void install() {
         const auto post = [this](std::string path, std::function<Response(const json&)> fn) {
             // The handler lives in the server's route table as long as the server.
@@ -587,6 +730,7 @@ struct App::State {
             sim_task.stop();
             return json_response(R"({"stopping":true})");
         });
+        install_sessions(post, get);
     }
 };
 
@@ -598,6 +742,9 @@ App::App(Server& server, AppOptions options)
 App::~App() = default;
 
 void App::stop_all() {
+    if (state_->sessions) {
+        state_->sessions->stop_all();
+    }
     state_->monitor_task.stop();
     state_->sim_task.stop();
     state_->conform_task.stop();

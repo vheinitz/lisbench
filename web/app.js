@@ -122,14 +122,16 @@ function setHandshake(table, show) {
 
 // --- views ------------------------------------------------------------------
 
+// The Tools view: the v0.7 views, one at a time.
 function setupNav() {
-  for (const button of Array.from(document.querySelectorAll("nav button"))) {
+  const buttons = Array.from(document.querySelectorAll("#tools-nav button"));
+  for (const button of buttons) {
     if (!(button instanceof HTMLButtonElement)) continue;
     button.addEventListener("click", () => {
-      for (const b of Array.from(document.querySelectorAll("nav button"))) {
+      for (const b of buttons) {
         b.classList.toggle("active", b === button);
       }
-      for (const v of Array.from(document.querySelectorAll(".view"))) {
+      for (const v of Array.from(document.querySelectorAll(".tool-view"))) {
         if (v instanceof HTMLElement) v.hidden = v.id !== `view-${button.dataset.view}`;
       }
       if (button.dataset.view === "captures" || button.dataset.view === "sim") {

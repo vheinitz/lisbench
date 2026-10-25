@@ -9,17 +9,48 @@
 <body>
 <header>
   <h1>lisbench</h1>
-  <nav>
-    <button data-view="monitor" class="active">Monitor</button>
-    <button data-view="captures">Captures</button>
-    <button data-view="conform">Conformance</button>
-    <button data-view="sim">Simulator</button>
+  <nav id="main-nav">
+    <button data-view="home" class="active">Sessions</button>
+    <span id="session-tabs"></span>
+    <button data-view="catalog">Test catalogue</button>
+    <button data-view="tools">Tools</button>
   </nav>
   <span id="link" class="pill off" title="Live connection to the lisbench daemon">offline</span>
 </header>
 
 <main>
-<section id="view-monitor" class="view">
+<section id="view-home" class="view">
+  <div class="toolbar">
+    <h2>Sessions</h2>
+    <button type="button" id="new-lis">New LIS simulator</button>
+    <button type="button" id="new-device">New instrument simulator</button>
+  </div>
+  <table id="sessions" class="results"></table>
+  <div id="editor" hidden></div>
+</section>
+
+<section id="view-catalog" class="view" hidden>
+  <div class="toolbar">
+    <h2>Test catalogue</h2>
+    <span class="muted">shared by all sessions: the LIS orders these tests, instruments produce their results</span>
+  </div>
+  <table id="catalog" class="results edit"></table>
+  <div class="actions">
+    <button type="button" id="catalog-add">Add test</button>
+    <button type="button" id="catalog-save" class="primary">Save catalogue</button>
+  </div>
+</section>
+
+<section id="view-session" class="view" hidden></section>
+
+<section id="view-tools" class="view" hidden>
+<nav id="tools-nav" class="subnav">
+  <button data-view="monitor" class="active">Monitor</button>
+  <button data-view="captures">Captures</button>
+  <button data-view="conform">Conformance</button>
+  <button data-view="sim">Simulator</button>
+</nav>
+<section id="view-monitor" class="tool-view">
   <form id="monitor-form" class="panel">
     <label>Side A <input name="a" required placeholder="tcp-listen://:15000 or serial:/dev/ttyUSB0?baud=9600"></label>
     <label>Side B <input name="b" required placeholder="tcp://lis-host:5000"></label>
@@ -43,7 +74,7 @@
   <pre id="monitor-summary" class="summary"></pre>
 </section>
 
-<section id="view-captures" class="view" hidden>
+<section id="view-captures" class="tool-view" hidden>
   <div class="panel">
     <div class="toolbar">
       <label>Watch <input id="capture-watch" placeholder="R.value > 100"></label>
@@ -57,7 +88,7 @@
   <pre id="capture-summary" class="summary"></pre>
 </section>
 
-<section id="view-conform" class="view" hidden>
+<section id="view-conform" class="tool-view" hidden>
   <form id="conform-form" class="panel">
     <label>IUT role
       <select name="iut"><option value="computer">LIS (computer system)</option><option value="instrument">Instrument</option></select>
@@ -78,7 +109,7 @@
   <table id="conform-results" class="results"></table>
 </section>
 
-<section id="view-sim" class="view" hidden>
+<section id="view-sim" class="tool-view" hidden>
   <form id="sim-form" class="panel">
     <label>Scenario <select name="scenario"><option value="">(none: use the fields below)</option></select></label>
     <label>Role
@@ -98,10 +129,12 @@
   </form>
   <div id="sim-log" class="events"></div>
 </section>
+</section>
 </main>
 
 <div id="toast" role="status" hidden></div>
 <footer><span id="version"></span> · files in <span id="data-dir"></span> · a hobby project, not for clinical use</footer>
 <script src="/app.js"></script>
+<script type="module" src="/sessions.js"></script>
 </body>
 </html>
