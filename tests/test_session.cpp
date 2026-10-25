@@ -153,7 +153,8 @@ TEST_CASE("order book: host query through to final, item states follow the messa
     CHECK_FALSE(h.query_all);
 
     const auto answer = b.answer(*h.query, false, NoOrderReply::y_record);
-    REQUIRE(answer.records.size() == 5);  // H P O O L
+    REQUIRE(answer.records.size() == 5);      // H P O O L
+    CHECK(answer.records.back() == "L|1|F");  // last request processed
     CHECK(answer.records[2].starts_with("O|1|S-1||^^^GLU|R||||||N||||||||||||||Q"));
     CHECK(answer.records[3].starts_with("O|2|S-1||^^^FLUA|"));
     // Not yet delivered: still new.
@@ -211,7 +212,11 @@ TEST_CASE("order book: batch orders, cancellation, query for unknown specimens")
     CHECK(y.records[2].starts_with("O|1|S-404||^^^|"));
     CHECK(y.records[2].ends_with("|Y"));
     CHECK(y.items.empty());
-    CHECK(b.answer({"S-404"}, false, NoOrderReply::empty).records.size() == 2);
+    CHECK(y.records.back() == "L|1|I");  // no information for the query
+    const auto empty = b.answer({"S-404"}, false, NoOrderReply::empty);
+    CHECK(empty.records.size() == 2);
+    CHECK(empty.records.back() == "L|1|I");
+    CHECK(o->records.back() == "L|1|N");
 
     // Query ALL: everything still new.
     const auto all = b.answer({}, true, NoOrderReply::y_record);
@@ -269,6 +274,7 @@ TEST_CASE("device model: specimens, query, answer, stable results") {
     const auto q = m.query(s);
     REQUIRE(q.size() == 3);
     CHECK(q[1] == "Q|1|^S-00041||ALL||||||||O");
+    CHECK(q[2] == "L|1|N");
 
     // The LIS answers with two tests (and something for another specimen).
     const auto answer =
@@ -322,4 +328,129 @@ TEST_CASE("LIS and instrument models together: Q, O, R without a wire") {
     CHECK(state_of(lis, "S-00001", "GLU") == "final");
     CHECK(lis.find("S-00001")->items[0].result->value == s.values[0]);
     CHECK(lis.unmatched().empty());
+}
+
+// --- running sessions ------------------------------------------------------------
+
+#include <filesystem>
+#include <fstream>
+
+#include "lisbench/session/manager.hpp"
+
+namespace {
+
+std::uint16_t free_port() {
+    asio::io_context io;
+    asio::ip::tcp::acceptor a{io, {asio::ip::make_address("127.0.0.1"), 0}};
+    return a.local_endpoint().port();
+}
+
+}  // namespace
+
+TEST_CASE("session manager: one LIS and two instruments on one event loop") {
+    namespace fs = std::filesystem;
+    const auto dir = fs::temp_directory_path() / "lisbench_session_manager_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    std::ofstream(dir / "catalog.yaml") << catalog_yaml;
+    const auto port = free_port();
+    const auto port2 = free_port();
+
+    asio::io_context io;
+    std::vector<std::pair<std::string, std::string>> events;  // session, kind
+    Manager m{io.get_executor(),
+              {.data_dir = dir, .profile_search = {}},
+              [&](std::string_view s, std::string_view k, const nlohmann::json&) {
+                  events.emplace_back(s, k);
+              }};
+    CHECK(m.catalog().tests.size() == 2);
+
+    const auto tcp = [&](Transport t) {
+        return LinkConfig{.role = "main", .transport = t, .host = "127.0.0.1", .port = port};
+    };
+    REQUIRE(m.save({.name = "lis",
+                    .type = SessionType::lis,
+                    .fast_timing = true,
+                    .links = {tcp(Transport::tcp_server)},
+                    .lis = {.unsolicited = Unsolicited::flag}}));
+    REQUIRE(m.save({.name = "asking",
+                    .type = SessionType::device,
+                    .fast_timing = true,
+                    .links = {tcp(Transport::tcp_client)},
+                    .device = {.mode = DeviceMode::host_query,
+                               .specimens = {"S-1", "S-2"},
+                               .interval = 100ms,
+                               .query_timeout = 2s,
+                               .measure_time = 100ms}}));
+    // A server link serves one partner at a time (LIS01-A2 is point to point),
+    // so the second instrument has a LIS of its own.
+    auto other = tcp(Transport::tcp_server);
+    other.port = port2;
+    REQUIRE(m.save({.name = "lis2",
+                    .type = SessionType::lis,
+                    .fast_timing = true,
+                    .links = {other},
+                    .lis = {.unsolicited = Unsolicited::flag}}));
+    other.transport = Transport::tcp_client;
+    REQUIRE(m.save({.name = "talking",
+                    .type = SessionType::device,
+                    .fast_timing = true,
+                    .links = {other},
+                    .device = {.mode = DeviceMode::unsolicited,
+                               .specimens = {"U-1"},
+                               .tests = {"GLU"},
+                               .interval = 100ms,
+                               .measure_time = 100ms}}));
+    REQUIRE(m.save(
+        {.name = "lis-copy", .type = SessionType::lis, .links = {tcp(Transport::tcp_server)}}));
+    CHECK(m.list().size() == 5);
+
+    // Orders for S-1 only; S-2 is unknown to the LIS.
+    REQUIRE(m.edit_book("lis", [](OrderBook& b) -> std::expected<void, std::string> {
+        if (auto r = b.add_specimen({.id = "S-1"}); !r) {
+            return r;
+        }
+        return b.add_test("S-1", "GLU");
+    }));
+
+    REQUIRE(m.start("lis"));
+    CHECK_FALSE(m.start("lis"));  // running already
+    const auto conflict = m.start("lis-copy");
+    REQUIRE_FALSE(conflict);
+    CHECK(conflict.error().contains("used by session lis"));
+    REQUIRE(m.start("lis2"));
+    REQUIRE(m.start("asking"));
+    REQUIRE(m.start("talking"));
+    CHECK_FALSE(m.remove("lis"));  // running
+
+    io.run_for(4s);
+    const auto lis = m.details("lis").value();
+    const auto asking = m.details("asking").value();
+    const auto lis2 = m.details("lis2").value();
+    m.stop_all();
+    io.run_for(1s);
+    CHECK_FALSE(m.running("lis"));
+
+    // S-1: asked, answered, measured, final. S-2: no order. U-1: unsolicited, kept for review.
+    const auto book = OrderBook::from_json(lis["state"]).value();
+    CHECK(state_of(book, "S-1", "GLU") == "final");
+    CHECK(book.unmatched().empty());
+    const auto book2 = OrderBook::from_json(lis2["state"]).value();
+    REQUIRE(book2.unmatched().size() == 1);
+    CHECK(book2.unmatched()[0].specimen == "U-1");
+    std::map<std::string, std::string> specimen_states;
+    for (const auto& s : asking["state"]["specimens"]) {
+        specimen_states[s["id"]] = s["state"];
+    }
+    CHECK(specimen_states["S-1"] == "reported");
+    CHECK(specimen_states["S-2"] == "no-order");
+    CHECK(lis["status"]["messages_in"].get<int>() >= 3);
+    CHECK(std::ranges::count(events, std::pair<std::string, std::string>{"lis", "book"}) >= 2);
+
+    // The order book outlives the run (state file).
+    const auto saved = load_book(m.state_file("lis")).value();
+    CHECK(state_of(saved, "S-1", "GLU") == "final");
+    REQUIRE(m.remove("lis-copy"));
+    CHECK(m.list().size() == 4);
+    fs::remove_all(dir);
 }

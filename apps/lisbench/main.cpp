@@ -24,6 +24,7 @@
 #include "cmd_conform.hpp"
 #include "cmd_map.hpp"
 #include "cmd_monitor.hpp"
+#include "cmd_run.hpp"
 #include "cmd_serve.hpp"
 #include "common.hpp"
 #include "lisbench/lis01_decoder.hpp"
@@ -529,6 +530,11 @@ int run(int argc, char** argv) {
     serve->add_option("--captures", serve_flags.captures,
                       "Directory for captures, message files (.astm) and scenarios (.yaml)");
 
+    cli::RunFlags run_flags;
+    auto* run_cmd = app.add_subcommand(
+        "run", "Run session files (<data>/sessions/<name>.yaml) without the web UI");
+    run_cmd->add_option("sessions", run_flags.files, "Session files")->required();
+
     CLI11_PARSE(app, argc, argv);
     for (auto* t : {&text, &mon.text}) {
         if (auto r = t->resolve(); !r) {
@@ -560,6 +566,9 @@ int run(int argc, char** argv) {
         }
         if (*serve) {
             return cli::cmd_serve(serve_flags);
+        }
+        if (*run_cmd) {
+            return cli::cmd_run(run_flags);
         }
         if (*bridge) {
             return cli::cmd_bridge(bridge_flags);

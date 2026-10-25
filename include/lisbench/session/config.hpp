@@ -11,6 +11,8 @@
 #include <string_view>
 #include <vector>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include "lisbench/io/endpoint.hpp"
 
 namespace lisbench::session {
@@ -78,5 +80,7 @@ struct SessionConfig {
 [[nodiscard]] std::expected<SessionConfig, std::string> load_session(
     const std::filesystem::path& file);
 [[nodiscard]] std::string to_yaml(const SessionConfig& config);
+// The same as typed JSON, for the web UI's forms; parse_session reads it back.
+[[nodiscard]] nlohmann::json config_json(const SessionConfig& config);
 
 }  // namespace lisbench::session

@@ -233,7 +233,9 @@ excepted). A session instance has the lifecycle `stopped → starting →
 running → stopping → stopped`, or `failed` with a reason; each link reports
 `waiting` (server or port open, no partner), `connected`, `closed`. Before
 start, lisbench refuses a session whose serial port or TCP listen port is
-already used by a running session. Live data is published per session; each
+already used by a running session. A `tcp-server` link serves one partner
+at a time, as LIS01-A2 is point to point: each instrument gets a port of its
+own. Live data is published per session; each
 session keeps the last 5000 events in memory and can also save a capture.
 
 ### 9.3 Session file

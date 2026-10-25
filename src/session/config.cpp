@@ -1,5 +1,7 @@
 #include "lisbench/session/config.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -35,7 +37,8 @@ std::string duration_text(milliseconds d) {
 }
 
 LinkConfig link_of(const YAML::Node& n) {
-    only_keys(n, "a link", {"role", "transport", "serial", "tcp"});
+    // label: written for the UI (config_json), derived, ignored when read back.
+    only_keys(n, "a link", {"role", "transport", "serial", "tcp", "label"});
     LinkConfig l;
     l.role = get<std::string>(n, "role", "main");
     l.transport = choice(n, "transport", Transport::tcp_server,
@@ -347,6 +350,52 @@ std::string to_yaml(const SessionConfig& c) {
     }
     out << YAML::EndMap;
     return std::string{out.c_str()} + "\n";
+}
+
+nlohmann::json config_json(const SessionConfig& c) {
+    using nlohmann::json;
+    json links = json::array();
+    for (const auto& l : c.links) {
+        json link = {{"role", l.role}, {"transport", to_string(l.transport)}};
+        if (l.transport == Transport::serial) {
+            const auto stop = stop_text(l.serial.stop_bits);
+            link["serial"] = {
+                {"port", l.serial.device},
+                {"baud", l.serial.baud},
+                {"data_bits", l.serial.data_bits},
+                {"parity", parity_name(l.serial.parity)},
+                {"stop_bits", stop == "1.5" ? json(1.5) : json(std::stoi(std::string{stop}))},
+                {"flow", flow_name(l.serial.flow)}};
+        } else {
+            link["tcp"] = {{l.transport == Transport::tcp_server ? "address" : "host", l.host},
+                           {"port", l.port}};
+        }
+        link["label"] = l.label();
+        links.push_back(std::move(link));
+    }
+    json j = {{"lisbench", "session/1"},
+              {"name", c.name},
+              {"type", to_string(c.type)},
+              {"profile", c.profile},
+              {"timing", c.fast_timing ? "fast-test" : "lis01-a2"},
+              {"links", std::move(links)}};
+    if (c.type == SessionType::lis) {
+        j["lis"] = {{"unsolicited", unsolicited_name(c.lis.unsolicited)},
+                    {"answer_queries", c.lis.answer_queries},
+                    {"no_order_reply",
+                     c.lis.no_order_reply == NoOrderReply::y_record ? "y-record" : "empty"}};
+    } else {
+        const auto& d = c.device;
+        json specimens = d.specimens.empty() ? json{{"prefix", d.prefix}, {"start", d.start}}
+                                             : json(d.specimens);
+        j["device"] = {{"mode", d.mode == DeviceMode::unsolicited ? "unsolicited" : "host-query"},
+                       {"specimens", std::move(specimens)},
+                       {"tests", d.tests},
+                       {"interval", duration_text(d.interval)},
+                       {"query_timeout", duration_text(d.query_timeout)},
+                       {"measure_time", duration_text(d.measure_time)}};
+    }
+    return j;
 }
 
 }  // namespace lisbench::session

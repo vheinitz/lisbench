@@ -37,7 +37,11 @@ lis02::Builder start(const std::string& sender) {
     return b;
 }
 
-std::vector<std::string> wire(lis02::Builder& b) {
+// L-3 termination code: N normal, F query answered, I nothing for the query.
+std::vector<std::string> wire(lis02::Builder& b, char termination = 'N') {
+    auto& l = b.add(RecordType::terminator).value().get();
+    put(l, RecordType::terminator, "termination_code",
+        lis02::make_field(std::string(1, termination)));
     auto lines = lis02::serialize(b.finish());
     if (!lines) {
         throw std::logic_error(lines.error().text);

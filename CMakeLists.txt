@@ -95,6 +95,7 @@ add_library(lisbench_session
   src/session/config.cpp
   src/session/order_book.cpp
   src/session/device_model.cpp
+  src/session/manager.cpp
 )
 add_library(lisbench::session ALIAS lisbench_session)
 target_link_libraries(lisbench_session PUBLIC lisbench::core lisbench::io nlohmann_json::nlohmann_json
@@ -135,14 +136,15 @@ target_include_directories(lisbench_webassets PUBLIC include)
 target_compile_features(lisbench_webassets PUBLIC cxx_std_23)
 
 add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp
-  apps/lisbench/cmd_map.cpp apps/lisbench/cmd_conform.cpp apps/lisbench/cmd_serve.cpp)
+  apps/lisbench/cmd_map.cpp apps/lisbench/cmd_conform.cpp apps/lisbench/cmd_serve.cpp
+  apps/lisbench/cmd_run.cpp)
 # Where --profile finds profiles by id: the source tree for a development
 # build, /usr/share/lisbench/devices in the package.
 set(LISBENCH_DEVICES_DIR "${PROJECT_SOURCE_DIR}/docs/devices" CACHE PATH
     "Directory with the instrument profiles that --profile looks up by id")
 target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}"
                                            LISBENCH_DEVICES_DIR="${LISBENCH_DEVICES_DIR}")
-target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench::web lisbench::webapp lisbench_webassets lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
+target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench::web lisbench::webapp lisbench::session lisbench_webassets lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)
   enable_testing()

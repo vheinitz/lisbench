@@ -42,7 +42,11 @@ lis02::Builder start(std::string_view receiver) {
     return b;
 }
 
-std::vector<std::string> wire(lis02::Builder& b) {
+// L-3 termination code: N normal, F query answered, I nothing for the query.
+std::vector<std::string> wire(lis02::Builder& b, char termination = 'N') {
+    auto& l = b.add(RecordType::terminator).value().get();
+    put(l, RecordType::terminator, "termination_code",
+        lis02::make_field(std::string(1, termination)));
     auto lines = lis02::serialize(b.finish());
     if (!lines) {
         throw std::logic_error(lines.error().text);
@@ -113,7 +117,7 @@ std::string header_record(std::string_view sender, std::string_view receiver) {
     put(h, RecordType::header, "processing_id", lis02::make_field("P"));
     put(h, RecordType::header, "version", lis02::make_field("LIS2-A2"));
     put(h, RecordType::header, "timestamp", lis02::make_field(now_stamp()));
-    return wire(b).front();
+    return lis02::serialize(b.finish()).value().front();
 }
 
 const Specimen* OrderBook::find(std::string_view id) const noexcept {
@@ -246,7 +250,7 @@ Outgoing OrderBook::answer(const std::vector<std::string>& specimen_ids, bool al
             add_order(b, unknown, "", 'N', 'Y');
         }
     }
-    out.records = wire(b);
+    out.records = wire(b, out.items.empty() ? 'I' : 'F');
     return out;
 }
 
