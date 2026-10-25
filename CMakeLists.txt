@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(lisbench VERSION 0.7.0 LANGUAGES C CXX)
+project(lisbench VERSION 0.7.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -124,8 +124,12 @@ target_compile_features(lisbench_webassets PUBLIC cxx_std_23)
 
 add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp
   apps/lisbench/cmd_map.cpp apps/lisbench/cmd_conform.cpp apps/lisbench/cmd_serve.cpp)
+# Where --profile finds profiles by id: the source tree for a development
+# build, /usr/share/lisbench/devices in the package.
+set(LISBENCH_DEVICES_DIR "${PROJECT_SOURCE_DIR}/docs/devices" CACHE PATH
+    "Directory with the instrument profiles that --profile looks up by id")
 target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}"
-                                           LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
+                                           LISBENCH_DEVICES_DIR="${LISBENCH_DEVICES_DIR}")
 target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench::web lisbench::webapp lisbench_webassets lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)
@@ -136,3 +140,5 @@ endif()
 if(LISBENCH_BUILD_FUZZERS)
   add_subdirectory(fuzz)
 endif()
+
+include(cmake/packaging.cmake)

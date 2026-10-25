@@ -31,4 +31,5 @@ target_compile_definitions(lisbench_tests PRIVATE LISBENCH_CORPUS_DIR="${CMAKE_C
                                                   LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
-catch_discover_tests(lisbench_tests)
+# PRE_TEST: a cross build cannot run the test binary while it is being built.
+catch_discover_tests(lisbench_tests DISCOVERY_MODE PRE_TEST)

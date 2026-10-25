@@ -1,0 +1,10 @@
+# Settings of the lisbench web UI service. Enable it with
+#   sudo systemctl enable --now lisbench
+#
+# 0.0.0.0 makes the UI reachable on the LAN. There is no authentication:
+# anyone who reaches this port can open connections from this computer to
+# instruments and LIS. Use 127.0.0.1 to keep it local.
+LISBENCH_HTTP=0.0.0.0:8080
+
+# Captures, message files (.astm) and scenarios (.yaml) for the UI.
+LISBENCH_DATA=/var/lib/lisbench

@@ -1,0 +1,29 @@
+[Unit]
+Description=lisbench web UI for laboratory instrument interfaces
+Documentation=https://github.com/vheinitz/lisbench
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lisbench
+Group=lisbench
+# Serial ports (USB adapters, the Pi's UART) belong to the group dialout.
+SupplementaryGroups=dialout
+EnvironmentFile=-/etc/default/lisbench
+ExecStart=/usr/bin/lisbench serve --http ${LISBENCH_HTTP} --captures ${LISBENCH_DATA}
+Restart=on-failure
+RestartSec=5
+# Captures, message files and scenarios live here; nothing else is writable.
+StateDirectory=lisbench
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

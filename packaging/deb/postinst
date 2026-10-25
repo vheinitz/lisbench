@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    if ! getent passwd lisbench >/dev/null; then
+        adduser --system --group --home /var/lib/lisbench --no-create-home \
+            --gecos "lisbench web UI" lisbench >/dev/null
+    fi
+    adduser lisbench dialout >/dev/null 2>&1 || true
+    install -d -o lisbench -g lisbench -m 0750 /var/lib/lisbench
+    # A few message files so that the simulator view has something to send.
+    for f in /usr/share/doc/lisbench/examples/*.astm; do
+        [ -e "$f" ] || continue
+        target="/var/lib/lisbench/$(basename "$f")"
+        [ -e "$target" ] || install -o lisbench -g lisbench -m 0640 "$f" "$target"
+    done
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        if systemctl is-active --quiet lisbench; then
+            systemctl restart lisbench || true
+        fi
+    fi
+    echo "lisbench: web UI service installed but not enabled."
+    echo "          Check /etc/default/lisbench, then: sudo systemctl enable --now lisbench"
+fi
+exit 0

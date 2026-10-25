@@ -1,6 +1,21 @@
 # Changelog
 
-## 0.7.0 – 2026-10-25
+## 0.7.1 – 2026-10-25
+
+- First release with the web UI of 0.7.0 (see below).
+- Debian packages for Raspberry Pi (arm64, armhf) and PC (amd64), built on
+  Debian 13 in CI; ARM builds cross-compiled with Debian's GCC 14, their
+  tests run under qemu. `/usr/bin/lisbench`, profiles in
+  `/usr/share/lisbench/devices`, examples, and a hardened systemd service
+  for the web UI (own user, group dialout, `/var/lib/lisbench`), not
+  enabled on install; settings in `/etc/default/lisbench`.
+- Releases are created by CI on a version tag, with the packages attached.
+- `LISBENCH_DEVICES_DIR` (CMake cache variable): where `--profile` looks up
+  profiles by id.
+- Tests: MSVC mangled a raw string literal with `\"` inside a Catch2 macro;
+  the web test keeps it in a variable.
+
+## 0.7.0 – 2026-10-25 (not tagged; released with 0.7.1)
 
 - `lisbench serve [--http 127.0.0.1:8080] [--captures DIR]`: web UI with
   four views. Monitor: endpoints, watches, profile, save; live table with

@@ -78,3 +78,81 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice devsim/LisDevice/examples/uno_analyzer
           arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice --build-property "compiler.cpp.extra_flags=-DLISDEV_FAST_TEST=1" devsim/LisDevice/examples/uno_analyzer
           arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --library devsim/LisDevice devsim/LisDevice/examples/esp32_analyzer
+
+  # Debian packages for the Raspberry Pi (arm64, armhf) and PCs (amd64), built
+  # on Debian 13 like Raspberry Pi OS. ARM builds are cross-compiled; their
+  # tests run under qemu-user. Cases with sub-second real-time limits are left
+  # to the native jobs above, since emulated time is too uneven for them.
+  packages:
+    name: deb-${{ matrix.arch }}
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, packages: "", toolchain: "", emulator: "" }
+          - { arch: arm64, packages: "g++-aarch64-linux-gnu qemu-user", toolchain: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm64.cmake", emulator: "qemu-aarch64 -L /usr/aarch64-linux-gnu" }
+          - { arch: armhf, packages: "g++-arm-linux-gnueabihf qemu-user", toolchain: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/armhf.cmake", emulator: "qemu-arm -L /usr/arm-linux-gnueabihf" }
+    steps:
+      - name: tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake ninja-build g++ ca-certificates dpkg-dev file ${{ matrix.packages }}
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLISBENCH_DEVICES_DIR=/usr/share/lisbench/devices ${{ matrix.toolchain }}
+      - run: cmake --build build
+      - name: tests (on ${{ matrix.arch }})
+        run: ${{ matrix.emulator }} build/tests/lisbench_tests "~conform*" "~web API*" "~*e2e*" "~command queue*"
+      - name: smoke test of the binary
+        run: |
+          file build/lisbench
+          ${{ matrix.emulator }} build/lisbench --version
+          ${{ matrix.emulator }} build/lisbench decode --profile docs/devices/cepheid-genexpert/profile.yaml docs/devices/cepheid-genexpert/examples/results.astm | grep -F "β-lactamase"
+      - run: cd build && cpack -G DEB
+      - name: package contents
+        run: |
+          dpkg-deb --info build/lisbench_*_${{ matrix.arch }}.deb
+          dpkg-deb --contents build/lisbench_*_${{ matrix.arch }}.deb
+      - name: install, run and remove (amd64 only)
+        if: matrix.arch == 'amd64'
+        run: |
+          apt-get install -y ./build/lisbench_*_amd64.deb
+          lisbench --version
+          getent passwd lisbench
+          test -f /var/lib/lisbench/results.astm
+          lisbench decode --profile cepheid-genexpert /usr/share/lisbench/devices/cepheid-genexpert/examples/results.astm | grep -F "β-lactamase"
+          (lisbench serve --http 127.0.0.1:8080 --captures /var/lib/lisbench & echo $! > /tmp/pid; sleep 1; true)
+          apt-get install -y --no-install-recommends curl
+          curl -sf http://127.0.0.1:8080/ | grep -q "<title>lisbench</title>"
+          curl -sf http://127.0.0.1:8080/api/files | grep -q results.astm
+          kill "$(cat /tmp/pid)"
+          apt-get purge -y lisbench
+          ! getent passwd lisbench
+          test ! -e /var/lib/lisbench
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: build/lisbench_*_${{ matrix.arch }}.deb
+
+  # On a version tag: create the release from CHANGELOG.md and attach the packages.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, sanitizers, lint, packages]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          merge-multiple: true
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          awk -v v="## ${tag#v} " 'index($0, v) == 1 {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --notes-file notes.md
+          gh release upload "$tag" dist/*.deb --clobber

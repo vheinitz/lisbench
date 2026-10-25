@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+if [ "$1" = purge ]; then
+    rm -rf /var/lib/lisbench
+    if getent passwd lisbench >/dev/null; then
+        deluser --system lisbench >/dev/null 2>&1 || true
+    fi
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+exit 0

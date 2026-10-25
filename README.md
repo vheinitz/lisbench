@@ -73,6 +73,29 @@ cmake --build build
 ctest --test-dir build
 ```
 
+## Raspberry Pi and Debian package
+
+Every release carries Debian packages built on Debian 13 (the base of
+current Raspberry Pi OS): `arm64` for a Pi 3B+ or newer with the 64-bit
+system, `armhf` for the 32-bit system (ARMv7, so not for a Pi Zero or Pi 1),
+and `amd64` for a PC.
+
+```console
+sudo apt install ./lisbench_0.7.0_arm64.deb
+lisbench --version
+sudo nano /etc/default/lisbench          # address of the web UI, data directory
+sudo systemctl enable --now lisbench     # web UI on port 8080
+```
+
+The package installs `/usr/bin/lisbench`, the instrument profiles under
+`/usr/share/lisbench/devices` (so `--profile cepheid-genexpert` works
+without a path), examples under `/usr/share/doc/lisbench/examples`, and a
+systemd service that runs `lisbench serve` as user `lisbench` (member of
+`dialout` for serial ports, data in `/var/lib/lisbench`). The service is not
+enabled on install: it makes a web UI without authentication reachable on
+the network, which should be a deliberate step. To build a package
+yourself: `cmake --build build && (cd build && cpack -G DEB)`.
+
 ## Command line
 
 ```console

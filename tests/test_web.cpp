@@ -55,7 +55,9 @@ TEST_CASE("http: responses and events") {
     CHECK(out.contains("Content-Type: application/json\r\n"));
     CHECK(out.contains("Content-Length: 11\r\n"));
     CHECK(out.ends_with("\r\n\r\n{\"ok\":true}"));
-    CHECK(web::error(404, "say \"no\"\n").body == R"({"error":"say \"no\""})");
+    // Outside the macro: MSVC mangles raw string literals in stringized macro arguments.
+    const std::string escaped = R"({"error":"say \"no\""})";
+    CHECK(web::error(404, "say \"no\"\n").body == escaped);
     CHECK(web::sse_event("record", "a\nb") == "event: record\ndata: a\ndata: b\n\n");
 }
 

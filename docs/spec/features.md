@@ -67,7 +67,8 @@ mapper and microcontroller simulators.
 | v0.6.5 (done) | `lisbench conform`: LIS01-A2 conformance test suite, 14 test cases (section 7) | own LIS, own instrument and LisDevice pass all cases; a receiver that acknowledges everything fails TR02/TR03 |
 | v0.6.6 (done) | receivers refuse restricted characters in frame text (link and LisDevice) | conform TR07 without note for all own implementations |
 | **v0.7.0** (done) | web UI (`lisbench serve`, section 8): monitor, captures, conformance test, simulator; own HTTP/SSE server on asio, pages built into the binary | HTTP parser and limits unit-tested; API end to end (monitor between simulators, capture, conformance, simulator, bad file names, double start); checked in Chrome |
-| v0.7.x | package for Raspberry Pi 3B+ (Debian 13), library export (`find_package`), release binaries | runs on a Pi 3B+, UI reachable on the LAN |
+| v0.7.1 | Debian packages arm64/armhf/amd64 (Debian 13), systemd service, release assets from CI | built and tested in CI (ARM under qemu), amd64 installed, served and purged in CI; on a real Pi 3B+ still to be confirmed |
+| v0.7.x | library export (`find_package`) | |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
 WIP limit: no web UI before v0.3.
