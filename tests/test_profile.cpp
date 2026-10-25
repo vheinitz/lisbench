@@ -21,6 +21,7 @@ TEST_CASE("profile: the GeneXpert profile by id, by directory and by file") {
         CHECK(p->text.non_ascii == lis02::NonAscii::raw);
         CHECK(p->max_text == 240U);
         CHECK_FALSE(p->contention_winner);  // "unclear" in the profile
+        CHECK(p->honours_receiver_interrupt == false);
     }
     CHECK_FALSE(sim::load_profile("no-such-instrument", {devices}));
     // An id is not looked up when it contains a path separator.

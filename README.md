@@ -41,6 +41,12 @@ A spare-time project.
   expressions on field values (`R.value > 100`, `O.universal_test_id.4 ==
   TSH`) and triggers on them (`R.value > 400 => exec ./alarm.sh`, `=> mark`,
   `=> stop`), saves the raw traffic and replays it offline.
+- Conformance test suite (`lisbench conform`) for a LIS or an instrument:
+  14 test cases on LIS01-A2 (wrong checksum and frame number must be
+  refused, repeated frames, six attempts, timeouts, busy wait, contention,
+  receiver interrupt, frame format), each with a verdict pass / fail /
+  inconclusive; an instrument profile serves as PICS. Terms after
+  ISO/IEC 9646.
 - Bridges without decoding: serial ↔ TCP, TCP client ↔ server (role swap),
   and recording of one endpoint to a capture or raw file.
 - Mapper from an SQLite database to messages, described in YAML: nested
@@ -76,6 +82,7 @@ lisbench sim --endpoint URI ...     the same from options (--send, --receive,
 lisbench monitor --a URI --b URI    pass traffic through and show it decoded
                                     (--watch, --trigger, --save, --decode, --verbose, --tap)
 lisbench monitor --replay FILE      the same for a saved capture
+lisbench conform --iut ROLE --endpoint URI   conformance test suite (--only, --profile, --json)
 lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
 lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)
 lisbench map MAPPING.yaml --db DB   messages from a database (--each, --arg, --to)

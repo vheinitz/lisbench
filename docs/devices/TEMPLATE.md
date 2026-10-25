@@ -43,7 +43,8 @@ Deviations from the standard and how to live with them.
 ## profile.yaml
 
 `lisbench decode|validate|monitor|sim --profile <id>` reads `lis01.max_text`,
-`lis01.contention_winner` (`instrument`, `computer` or `unclear`) and
+`lis01.contention_winner` (`instrument`, `computer` or `unclear`),
+`lis01.honours_receiver_interrupt` (PICS for `lisbench conform`) and
 `lis02.charset`, `non_ascii`, `local_escape`; options given on the command
 line win. The other keys document the instrument.
 

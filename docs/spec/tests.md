@@ -89,12 +89,22 @@ is repeated; six refusals end with rejected; no answer gives timeout after
 multi-frame record; contention: the instrument goes first, the LIS's
 message follows. CI compiles both sketches with all warnings.
 
-## 8. Later releases
+## 8. Conformance test suite (v0.6.5)
+
+test_conform.cpp runs the whole suite over TCP with short, proportionate
+timing against four IUTs: lisbench's own LIS (sim, answering queries) and
+own instrument (io::Session sending in a loop) must pass all 14 cases;
+devsim/LisDevice, driven like the sketch's loop(), must pass all 14 cases; a
+receiver that acknowledges every frame must fail TR02 and TR03, get only a
+note for TR07 (a "should") and leave the TS cases inconclusive. Verdict
+helpers (95 % rule, upper bound) and the report format are tested directly.
+
+## 9. Later releases
 
 - hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32 simulator
   ↔ monitor on a Raspberry Pi, 24 h.
 
-## 9. Tooling in CI
+## 10. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

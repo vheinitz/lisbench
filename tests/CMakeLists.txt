@@ -19,8 +19,9 @@ add_executable(lisbench_tests
   test_devsim.cpp
   test_trigger.cpp
   test_profile.cpp
+  test_conform.cpp
 )
-target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench_warnings Catch2::Catch2WithMain)
+target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench_warnings Catch2::Catch2WithMain)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(lisbench_tests PRIVATE util)
 endif()

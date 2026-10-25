@@ -21,6 +21,7 @@
 #include <string_view>
 #include <utility>
 
+#include "cmd_conform.hpp"
 #include "cmd_map.hpp"
 #include "cmd_monitor.hpp"
 #include "common.hpp"
@@ -527,6 +528,28 @@ int run(int argc, char** argv) {
         ->capture_default_str();
     map->add_flag("--keep-going", map_flags.keep_going, "Continue after a failed message");
 
+    cli::ConformFlags conform_flags;
+    auto* conform = app.add_subcommand(
+        "conform", "Run the LIS01-A2 conformance test suite against a LIS or an instrument");
+    conform->add_option("--iut", conform_flags.iut, "Role of the implementation under test")
+        ->check(CLI::IsMember({"computer", "instrument"}))
+        ->required();
+    conform
+        ->add_option("--endpoint", conform_flags.endpoint,
+                     "Where the IUT is: tcp://host:port, tcp-listen://:port, serial:...")
+        ->required();
+    conform->add_option("--only", conform_flags.only, "Test cases, e.g. TR02,TS03 (default all)");
+    conform->add_option(
+        "--profile", conform_flags.profile,
+        "Instrument profile as PICS (receiver interrupt, contention, frame length)");
+    conform->add_flag("--fast-timing", conform_flags.fast_timing,
+                      "Expect the fast test timing (devices built with LISDEV_FAST_TEST)");
+    conform
+        ->add_option("--wait", conform_flags.wait_s,
+                     "TS cases: seconds to wait for the IUT to start sending")
+        ->capture_default_str();
+    conform->add_option("--json", conform_flags.json, "Also write the results as JSON");
+
     CLI11_PARSE(app, argc, argv);
     for (auto* t : {&text, &mon.text}) {
         if (auto r = t->resolve(); !r) {
@@ -552,6 +575,9 @@ int run(int argc, char** argv) {
         }
         if (*map) {
             return cli::cmd_map(map_flags);
+        }
+        if (*conform) {
+            return cli::cmd_conform(conform_flags);
         }
         if (*bridge) {
             return cli::cmd_bridge(bridge_flags);

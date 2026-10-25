@@ -3,7 +3,8 @@
 // Instrument profiles (docs/devices/<id>/profile.yaml): the machine-readable
 // part that lisbench uses. Read are
 //
-//   lis01: {max_text: 240, contention_winner: instrument | computer | unclear}
+//   lis01: {max_text: 240, contention_winner: instrument | computer | unclear,
+//           honours_receiver_interrupt: true | false}
 //   lis02: {charset: latin1 | utf8, non_ascii: ascii-hex | raw | transliterate,
 //           local_escape: keep | utf16-hex}
 //
@@ -28,6 +29,7 @@ struct Profile {
     lis02::TextOptions text{};
     std::optional<lis01::Role> contention_winner{};  // unset: the profile does not know
     std::optional<std::size_t> max_text{};
+    std::optional<bool> honours_receiver_interrupt{};  // PICS for lisbench conform
     std::filesystem::path file{};
 };
 

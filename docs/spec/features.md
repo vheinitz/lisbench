@@ -64,6 +64,7 @@ mapper and microcontroller simulators.
 | v0.6.2 (done) | first hardware run (Uno-compatible board, 9600 baud): link re-acknowledges a repeated ENQ; INCOMPLETE shown in `sim`; readable `--trace` | normal, NAK, ENQ-NAK and timeout cases on the board |
 | v0.6.3 (done, in v0.6.4) | triggers on watch hits (`exec` with the hit in the environment, `mark` in the capture, `stop`); fast test timing for board tests; serial backlog dropped on open | trigger, command queue and capture tests; on the board: exec, mark, stop, and no stale burst after a minute without listener |
 | v0.6.4 (done) | `--profile <id>` for decode, validate, monitor and sim: text options, frame length and contention rule from `profile.yaml` (U8, first part) | profile tests; GeneXpert example decoded with `\Z` escapes by profile alone |
+| v0.6.5 (done) | `lisbench conform`: LIS01-A2 conformance test suite, 14 test cases (section 7) | own LIS, own instrument and LisDevice pass all cases; a receiver that acknowledges everything fails TR02/TR03 |
 | v0.7 | web UI served by the daemon; package for Raspberry Pi 3B+ (Debian 13) | runs on a Pi 3B+, UI reachable on the LAN |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
@@ -103,3 +104,47 @@ bugs, workarounds), `examples/` (messages with source: document, revision,
 page). Sources allowed: freely downloadable manuals (linked, not copied),
 open source, own reverse engineering, contributions that name their source.
 Template: [docs/devices/TEMPLATE.md](../devices/TEMPLATE.md).
+
+## 7. Conformance test suite (`lisbench conform`)
+
+Added 2026-10-25. Request: "ja, erst conform, dann Webinterface" and
+"ja, Standardterminologie verwenden". Terms after ISO/IEC 9646 (ITU-T X.290):
+the **IUT** (implementation under test, a LIS or an instrument) is reached
+over TCP or serial; lisbench is the **tester** and plays the other role. Each
+**test case** checks one **test purpose** and ends with a **verdict**:
+*pass*, *fail*, or *inconclusive* when the behaviour could not be observed
+(the IUT sent nothing, the message had one frame only). A deviation from a
+*should* requirement is *pass* with a note, never *fail*. An instrument
+profile (`--profile`) serves as the **PICS**: where it states a permitted
+option (e.g. ignoring the receiver interrupt), the observed behaviour is
+compared with it. Rules are described in own words; no text of the standard
+is copied and no section numbers are quoted.
+
+Timing expectations come from LIS01-A2 (or `--fast-timing` for devices built
+with the test preset). A measured time passes from 95 % of the nominal value;
+an upper bound is checked where the rule has one.
+
+| Test case | Test purpose (LIS01-A2) | Level |
+|---|---|---|
+| TR01 | IUT as receiver: accepts a valid message, every frame answered with ACK | shall |
+| TR02 | rejects a frame with a wrong checksum with NAK | shall |
+| TR03 | rejects a frame whose number is neither the last accepted nor the next one with NAK | shall |
+| TR04 | accepts a repeated frame (same number as the last accepted, as after a lost ACK) with ACK | shall |
+| TR05 | accepts intermediate frames (ETB), 240 characters of text and frame numbers wrapping from 7 to 0 | shall |
+| TR06 | answers ENQ and every frame within the sender's 15 s reply timeout (largest reply time reported) | shall |
+| TR07 | rejects a frame with a restricted character (LF) in its text | should |
+| TS01 | IUT as sender: every frame well formed (checksum, number sequence from 1 modulo 8, at most 240 characters of text, ETB/ETX, CR LF) | shall |
+| TS02 | repeats a frame answered with NAK, with the same frame number | shall |
+| TS03 | gives up with EOT after six transmissions of a refused frame | shall |
+| TS04 | gives up with EOT when a frame is not answered within 15 s | shall |
+| TS05 | after ENQ is answered with NAK, waits at least 10 s before the next ENQ | shall |
+| TS06 | contention (ENQ answered with ENQ): an instrument re-sends ENQ after at least 1 s; a LIS backs off and accepts the tester's ENQ | shall |
+| TS07 | receiver interrupt (frame answered with EOT): the IUT may finish or stop; if it stops, no new ENQ for 15 s. Compared with the profile | shall |
+
+For a LIS as IUT the TS cases need it to send: the tester sends a query
+before each one and the LIS's answer is the message under test. An
+instrument is expected to send by itself; the tester waits for its ENQ.
+Traffic the IUT starts between cases is received and acknowledged normally.
+
+Not in this suite (not observable on the link alone): duplicate suppression
+in the IUT's application, the receiver's 30 s timeout, LIS02-A2 content.

@@ -36,6 +36,9 @@ std::expected<Profile, std::string> parse_profile(std::string_view yaml,
                 }
                 p.max_text = v;
             }
+            if (const auto n = l1["honours_receiver_interrupt"]) {
+                p.honours_receiver_interrupt = n.as<bool>();
+            }
             if (const auto n = l1["contention_winner"]) {
                 const auto v = n.as<std::string>();
                 if (v == "instrument") {

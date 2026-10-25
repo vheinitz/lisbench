@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(lisbench VERSION 0.6.4 LANGUAGES C CXX)
+project(lisbench VERSION 0.6.5 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -88,11 +88,18 @@ add_library(lisbench_monitor
 add_library(lisbench::monitor ALIAS lisbench_monitor)
 target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)
 
+add_library(lisbench_conform
+  src/conform/suite.cpp
+  src/conform/tester.cpp
+)
+add_library(lisbench::conform ALIAS lisbench_conform)
+target_link_libraries(lisbench_conform PUBLIC lisbench::io PRIVATE lisbench_warnings)
+
 add_executable(lisbench apps/lisbench/main.cpp apps/lisbench/cmd_monitor.cpp apps/lisbench/cmd_bridge.cpp
-  apps/lisbench/cmd_map.cpp)
+  apps/lisbench/cmd_map.cpp apps/lisbench/cmd_conform.cpp)
 target_compile_definitions(lisbench PRIVATE LISBENCH_VERSION="${PROJECT_VERSION}"
                                            LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
-target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
+target_link_libraries(lisbench PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench_warnings CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(LISBENCH_BUILD_TESTS)
   enable_testing()

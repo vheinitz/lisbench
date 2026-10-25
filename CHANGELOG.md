@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.5 – 2026-10-25
+
+- `lisbench conform --iut computer|instrument --endpoint URI`: LIS01-A2
+  conformance test suite with 14 test cases (receiver: checksum, frame
+  number, repeated frame, long messages, reply time, restricted characters;
+  sender: frame format, NAK repetition, six attempts, reply timeout, busy
+  wait, contention, receiver interrupt). Verdicts pass / fail / inconclusive
+  after ISO/IEC 9646; a "should" gives a note, not a fail. `--profile` acts
+  as PICS (receiver interrupt, contention rule), `--fast-timing` for devices
+  built with the test preset, `--json` for the results; exit code 1 when a
+  case fails.
+- Profiles: `lis01.honours_receiver_interrupt`.
+
 ## 0.6.4 – 2026-10-25
 
 - `--profile <id or path>` for `decode`, `validate`, `monitor` and `sim`:
