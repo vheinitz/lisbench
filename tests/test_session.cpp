@@ -454,3 +454,50 @@ TEST_CASE("session manager: one LIS and two instruments on one event loop") {
     CHECK(m.list().size() == 4);
     fs::remove_all(dir);
 }
+
+#if defined(__linux__)
+#include <pty.h>
+#include <unistd.h>
+
+TEST_CASE("session manager: a serial link opens and stays open") {
+    // Seen on an Arduino: the serial link closed 30 ms after it was opened.
+    namespace fs = std::filesystem;
+    const auto dir = fs::temp_directory_path() / "lisbench_session_serial_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    int master = -1;
+    int slave = -1;
+    std::array<char, 128> name{};
+    REQUIRE(openpty(&master, &slave, name.data(), nullptr, nullptr) == 0);
+
+    asio::io_context io;
+    std::vector<std::string> link_states;
+    Manager m{io.get_executor(),
+              {.data_dir = dir, .profile_search = {}},
+              [&](std::string_view, std::string_view kind, const nlohmann::json& d) {
+                  if (kind == "status" && !d["links"].empty()) {
+                      link_states.push_back(d["links"][0]["state"]);
+                  }
+              }};
+    LinkConfig serial{.role = "main", .transport = Transport::serial};
+    serial.serial.device = name.data();
+    REQUIRE(m.save({.name = "lis", .type = SessionType::lis, .links = {serial}}));
+    REQUIRE(m.start("lis"));
+    io.run_for(1s);
+    const auto d = m.details("lis").value();
+    CHECK(d["status"]["links"][0]["state"] == "connected");
+    m.stop_all();
+    io.run_for(500ms);
+    // Exactly one change to connected (each status event repeats the link state).
+    int changes = 0;
+    for (std::size_t i = 0; i < link_states.size(); ++i) {
+        changes +=
+            link_states[i] == "connected" && (i == 0 || link_states[i - 1] != "connected") ? 1 : 0;
+    }
+    CHECK(changes == 1);
+    CHECK(link_states.back() == "closed");
+    ::close(master);
+    ::close(slave);
+    fs::remove_all(dir);
+}
+#endif

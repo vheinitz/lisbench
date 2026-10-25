@@ -9,7 +9,7 @@ lisbench is a workbench for the people who build and integrate these
 interfaces. It is not middleware for clinical operation and must not be used
 to route patient results in production.
 
-Status: **v0.7, protocol core, command line tool, simulator, monitor,
+Status: **v0.8, protocol core, command line tool, simulator, monitor,
 bridges, database mapper and instrument simulators for Arduino/ESP32;
 first instrument profile ([Cepheid GeneXpert](docs/devices/cepheid-genexpert/README.md),
 from the public specification); conformance test suite; web UI.** The
@@ -48,6 +48,10 @@ A spare-time project.
   receiver interrupt, frame format), each with a verdict pass / fail /
   inconclusive; an instrument profile serves as PICS. Terms after
   ISO/IEC 9646.
+- Sessions: LIS and instrument simulators as saved session files, several
+  at once, with an order book (specimens, tests from a shared catalogue,
+  item states, order-result matching, unsolicited results by policy) and
+  host-query or unsolicited instruments; `lisbench run` or the web UI.
 - Web UI (`lisbench serve`): monitor, captures, conformance test and
   simulator in the browser, live; one binary with the pages built in, made
   for a Raspberry Pi next to the instrument.
@@ -110,6 +114,7 @@ lisbench monitor --a URI --b URI    pass traffic through and show it decoded
                                     (--watch, --trigger, --save, --decode, --verbose, --tap)
 lisbench monitor --replay FILE      the same for a saved capture
 lisbench serve [--http ADDR:PORT] [--captures DIR]   web UI (default 127.0.0.1:8080)
+lisbench run DIR/sessions/NAME.yaml ...  run session files without the UI
 lisbench conform --iut ROLE --endpoint URI   conformance test suite (--only, --profile, --json)
 lisbench bridge --a URI --b URI     join two endpoints, bytes unchanged (--serve, --save)
 lisbench record --from URI --to F   write what an endpoint sends to a file (--raw)

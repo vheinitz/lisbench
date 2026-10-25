@@ -21,6 +21,12 @@ arduino-cli upload  --fqbn arduino:avr:uno -p /dev/ttyACM0 devsim/LisDevice/exam
 lisbench sim --role computer --endpoint "serial:/dev/ttyACM0?baud=9600"
 ```
 
+Host-query mode: build with `-DLISDEV_HOST_QUERY=1` (or set it at the top
+of the sketch). For each specimen the Uno sends a query (Q), measures the
+tests the LIS orders and reports them; a specimen without an order, or
+without an answer in time, is skipped. Run it against a LIS session of
+`lisbench serve` with an order book, e.g. specimens S-00001 and S-00003.
+
 For quick tests build the Uno sketch with short timing and run lisbench
 with the same preset: 1 s pause between messages, 2 s reply timeout, 4 s
 receive timeout, 1 s busy retry. Not LIS01-A2, so never against a real LIS.

@@ -45,7 +45,7 @@ jobs:
       - run: pip install clang-tidy==19.1.0 clang-format==19.1.0
       - run: clang-format --dry-run --Werror $(git ls-files '*.cpp' '*.hpp')
       - name: type-check the web UI script (no build step, tsc only checks)
-        run: npx --yes -p typescript@5.6.3 tsc --noEmit --allowJs --checkJs --strict --target es2022 --lib es2022,dom,dom.iterable web/app.js
+        run: npx --yes -p typescript@5.6.3 tsc --noEmit --allowJs --checkJs --strict --target es2022 --module es2022 --lib es2022,dom,dom.iterable web/app.js web/sessions.js
       - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: cmake --build build --target lisbench
       # The database comes from GCC; its GCC-only warning flags are unknown to clang.
@@ -77,6 +77,7 @@ jobs:
         run: |
           arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice devsim/LisDevice/examples/uno_analyzer
           arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice --build-property "compiler.cpp.extra_flags=-DLISDEV_FAST_TEST=1" devsim/LisDevice/examples/uno_analyzer
+          arduino-cli compile --fqbn arduino:avr:uno --warnings all --library devsim/LisDevice --build-property "compiler.cpp.extra_flags=-DLISDEV_HOST_QUERY=1" devsim/LisDevice/examples/uno_analyzer
           arduino-cli compile --fqbn esp32:esp32:esp32 --warnings all --library devsim/LisDevice devsim/LisDevice/examples/esp32_analyzer
 
   # Debian packages for the Raspberry Pi (arm64, armhf) and PCs (amd64), built

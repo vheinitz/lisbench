@@ -111,12 +111,27 @@ capture; the capture listed and replayed; a conformance run against the LIS;
 refused. The script is type-checked by `tsc --strict` in CI. Manually in
 Chrome: conformance (14 pass), monitor with watch, capture view.
 
-## 10. Later releases
+## 10. Sessions (v0.8)
+
+test_session.cpp: catalogue and session files (read, written back, every
+kind of error with its line, no URIs); order book: host query to final,
+corrections, batch orders and cancellation, unknown specimens (O-26 = Y or
+header only), every unsolicited policy, state saved and restored; instrument
+model: specimen IDs, Q, tests from the answer, stable results; both models
+together without a wire. Session manager on one event loop: one LIS answers
+a host query through to final, an unknown specimen gets no order, an
+unsolicited result is kept for review on a second LIS, a port conflict is
+refused, the order book survives the run; a serial link (pty) opens and
+stays open. In Chrome: sessions created in the editor, orders added in the
+LIS tab, results shown live. On the Uno (host-query build): Q, O, R to final
+and a skipped specimen without an order.
+
+## 11. Later releases
 
 - hardware-in-the-loop job on a self-hosted runner: Arduino/ESP32 simulator
   ↔ monitor on a Raspberry Pi, 24 h.
 
-## 11. Tooling in CI
+## 12. Tooling in CI
 
 GCC 13 and 14, Clang 19, MSVC 2022 with warnings as errors; ASan + UBSan;
 clang-tidy 19 (`bugprone`, `cppcoreguidelines`, `modernize`, `performance`,

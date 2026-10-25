@@ -68,7 +68,7 @@ mapper and microcontroller simulators.
 | v0.6.6 (done) | receivers refuse restricted characters in frame text (link and LisDevice) | conform TR07 without note for all own implementations |
 | **v0.7.0** (done) | web UI (`lisbench serve`, section 8): monitor, captures, conformance test, simulator; own HTTP/SSE server on asio, pages built into the binary | HTTP parser and limits unit-tested; API end to end (monitor between simulators, capture, conformance, simulator, bad file names, double start); checked in Chrome |
 | v0.7.1 | Debian packages arm64/armhf/amd64 (Debian 13), systemd service, release assets from CI | built and tested in CI (ARM under qemu), amd64 installed, served and purged in CI; on a real Pi 3B+ still to be confirmed |
-| v0.8 to v0.10 | sessions: session files, shared test catalogue, LIS and instrument simulators as their own session types with order book and order-result matching, several instances, home tab; then separate order/result ports, monitor/conform sessions, export editor (section 9) | section 9.9 |
+| v0.8 (done) to v0.10 | sessions: session files, shared test catalogue, LIS and instrument simulators as their own session types with order book and order-result matching, several instances, home tab; then separate order/result ports, monitor/conform sessions, export editor (section 9) | section 9.9 |
 | later | library export (`find_package`) | |
 | later | Wireshark Lua dissector; RP2040 passive RS-232 tap; HL7 v2 over MLLP (IHE LAW) as own module | |
 
@@ -374,6 +374,6 @@ send timeout and retries per message, write-back).
 
 | Release | Content | Acceptance |
 |---|---|---|
-| v0.8 | session files and state files, catalogue, session manager (several instances, port conflicts), home tab, LIS simulator (order book, item states, matching, unsolicited policy, queries), instrument simulator (`unsolicited`, `host-query`), `lisbench run`; Uno sketch with a host-query mode | unit tests of file checking, item states and matching; end to end: two instrument sessions and one LIS session on one loop, host query through to `final`; unsolicited result handled per policy; on the Uno: Q → O → R |
+| v0.8 (done) | session files and state files, catalogue, session manager (several instances, port conflicts), home tab, LIS simulator (order book, item states, matching, unsolicited policy, queries), instrument simulator (`unsolicited`, `host-query`), `lisbench run`; Uno sketch with a host-query mode | unit tests of file checking, item states and matching; end to end: two instrument sessions and one LIS session on one loop, host query through to `final`; unsolicited result handled per policy; on the Uno: Q → O → R |
 | v0.9 | separate orders/results links, `batch` mode, monitor and conform as session types | LIS with two ports against an instrument with two links |
 | v0.10 | export sessions with the mapping editor and preview | a mapping built in the editor gives the same message as the hand-written file |

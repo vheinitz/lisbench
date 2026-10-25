@@ -1,7 +1,33 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 – 2026-10-26
 
+Sessions (docs/spec/features.md section 9).
+
+- Session files `<data>/sessions/<name>.yaml`: typed, checked with line
+  numbers, unknown keys are errors, no URIs (transport serial, tcp-server or
+  tcp-client with its own fields). State in `<name>.state.json`.
+- Shared test catalogue `<data>/catalog.yaml`.
+- LIS simulator: order book with specimens and order items, item states
+  after the LIS02-A2 codes (new, sent, answered, preliminary, final,
+  corrected, cannot-be-done, cancelled), batch orders and cancellation,
+  query answers (O-26 = Q, or Y / header only when there is no order),
+  order-result matching, unsolicited results accepted, kept for review or
+  ignored. L-3 termination codes N, F, I.
+- Instrument simulator: unsolicited and host-query modes, specimens from a
+  counter or a list, results from the catalogue (stable per specimen).
+- Several sessions on one event loop; port conflicts refused; links
+  reconnect; `lisbench run <data>/sessions/*.yaml` without the UI.
+- Web UI: home tab with all sessions live, a typed editor (serial ports
+  from this computer with their USB names, choices instead of free text),
+  one tab per session (kept across reloads), order book and results,
+  catalogue editor. The v0.7 views moved under Tools.
+- Uno sketch: host-query mode (`LISDEV_HOST_QUERY=1`). On the board against
+  a LIS session: Q, O, R through to final; a specimen without an order is
+  skipped.
+- Fixed while testing: a serial link closed 30 ms after it opened (an `||`
+  nested in another `||`); hidden form parts were shown (`display` beat
+  `hidden`).
 - `conform`: before the first case the tester waits until the IUT answers
   at all (a board that resets when its port is opened is deaf for a second
   or two); an unanswered ENQ is ended with EOT and tried again; TR06 counts

@@ -167,21 +167,24 @@ public:
         while (!stopping_) {
             try {
                 std::optional<io::Stream> stream;
-                // Raced against stop(): a connect to an absent partner may take minutes.
                 if (acceptor_) {
+                    // stop() closes the acceptor, which ends a pending accept.
                     set(LinkState::waiting, "");
-                    auto r = co_await (io::accept(*acceptor_) || until_stopped());
-                    if (r.index() == 1) {
-                        break;
-                    }
-                    stream.emplace(std::move(std::get<0>(r)));
-                } else {
+                    stream.emplace(co_await io::accept(*acceptor_));
+                } else if (config_.transport == Transport::tcp_client) {
+                    // A connect to an absent partner may take minutes: raced against stop().
                     set(LinkState::connecting, "");
                     auto r = co_await (io::connect(endpoint) || until_stopped());
                     if (r.index() == 1) {
                         break;
                     }
                     stream.emplace(std::move(std::get<0>(r)));
+                } else {
+                    // Opening a serial port is quick. Not raced: io::connect drains the port
+                    // with an || of its own, and nested inside another || the stop branch
+                    // was seen to finish first (the link stopped 30 ms after opening).
+                    set(LinkState::connecting, "");
+                    stream.emplace(co_await io::connect(endpoint));
                 }
                 io::SessionHandlers handlers;
                 handlers.on_transfer = [this](const io::Transfer& t) {
