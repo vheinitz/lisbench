@@ -90,6 +90,16 @@ add_library(lisbench_monitor
 add_library(lisbench::monitor ALIAS lisbench_monitor)
 target_link_libraries(lisbench_monitor PUBLIC lisbench::io PRIVATE lisbench_warnings nlohmann_json::nlohmann_json)
 
+add_library(lisbench_session
+  src/session/catalog.cpp
+  src/session/config.cpp
+  src/session/order_book.cpp
+  src/session/device_model.cpp
+)
+add_library(lisbench::session ALIAS lisbench_session)
+target_link_libraries(lisbench_session PUBLIC lisbench::core lisbench::io nlohmann_json::nlohmann_json
+  PRIVATE lisbench::sim lisbench_warnings yaml-cpp::yaml-cpp)
+
 add_library(lisbench_web
   src/web/http.cpp
   src/web/server.cpp

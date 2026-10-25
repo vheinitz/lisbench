@@ -39,6 +39,9 @@ struct RecordInfo {
 
 // 1-based field number for a field name of a record type.
 [[nodiscard]] std::optional<std::size_t> field_number(RecordType t, std::string_view name) noexcept;
+// The same for names fixed in code: an unknown name is a programming error
+// and throws std::invalid_argument.
+[[nodiscard]] std::size_t field_number_or_throw(RecordType t, std::string_view name);
 
 // Field name for a 1-based field number; empty if beyond the standard list
 // (manufacturer records and device extensions).

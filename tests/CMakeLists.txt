@@ -22,8 +22,9 @@ add_executable(lisbench_tests
   test_conform.cpp
   test_web.cpp
   test_webapp.cpp
+  test_session.cpp
 )
-target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench::web lisbench::webapp lisbench_warnings nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+target_link_libraries(lisbench_tests PRIVATE lisbench::core lisbench::sim lisbench::monitor lisbench::mapper lisbench::conform lisbench::web lisbench::webapp lisbench::session lisbench_warnings nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(lisbench_tests PRIVATE util)
 endif()

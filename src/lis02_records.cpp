@@ -1,5 +1,9 @@
 #include "lisbench/lis02_records.hpp"
 
+#include <stdexcept>
+
+#include <format>
+
 #include <algorithm>
 
 namespace lisbench::lis02 {
@@ -225,6 +229,14 @@ std::string_view field_name(RecordType t, std::size_t number) noexcept {
         return {};
     }
     return fields[number - 1];
+}
+
+std::size_t field_number_or_throw(RecordType t, std::string_view name) {
+    if (const auto n = field_number(t, name)) {
+        return *n;
+    }
+    throw std::invalid_argument(
+        std::format("record {} has no field '{}'", static_cast<char>(t), name));
 }
 
 }  // namespace lisbench::lis02
