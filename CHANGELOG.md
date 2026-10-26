@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Web UI: serial port fields are editable comboboxes: free text, a list of
+  the ports found on the computer running lisbench, and a button that asks
+  for them again (updates every port field on the page).
+
 ## 0.8.0 – 2026-10-26
 
 Sessions (docs/spec/features.md section 9).

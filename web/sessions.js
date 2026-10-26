@@ -256,6 +256,41 @@ function newConfig(type) {
                   interval: "30s", query_timeout: "60s", measure_time: "2s" } };
 }
 
+/** Fills the choice list of one port picker from `ports`. @param {HTMLSelectElement} list */
+function fillPortList(list) {
+  list.replaceChildren(h("option", { value: "" }, ports.length > 0 ? "(ports found)" : "(no serial port found)"),
+    ...ports.map((p) => h("option", { value: p.path }, `${p.path} (${p.description || "serial port"})`)));
+  list.value = "";
+}
+
+/**
+ * A serial port field: free text (a port that is not plugged in yet, or one the
+ * list misses), a list of the ports found on the computer running lisbench, and
+ * a button that asks for them again. All pickers on the page share the list.
+ * @param {string} name
+ * @param {string} value
+ */
+function portPicker(name, value) {
+  const field = /** @type {HTMLInputElement} */ (h("input", { name, value,
+    placeholder: "e.g. /dev/ttyUSB0 or COM3", autocomplete: "off" }));
+  const list = /** @type {HTMLSelectElement} */ (h("select", { class: "port-list", title: "ports found", "aria-label": "ports found" }));
+  fillPortList(list);
+  list.addEventListener("change", () => {
+    if (list.value !== "") field.value = list.value;
+    list.value = "";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const refresh = h("button", { type: "button", class: "small", title: "look for serial ports again",
+    "aria-label": "look for serial ports again" }, "\u21bb");
+  refresh.addEventListener("click", guarded(async () => {
+    ports = await api("/api/serial-ports");
+    for (const l of Array.from(document.querySelectorAll("select.port-list"))) {
+      if (l instanceof HTMLSelectElement) fillPortList(l);
+    }
+  }));
+  return h("span", { class: "port-picker" }, field, list, refresh);
+}
+
 /**
  * One connection: serial port, wait for a connection, or connect to a partner.
  * @param {LinkCfg} link
@@ -265,15 +300,9 @@ function linkEditor(link, title) {
   const box = h("fieldset", { class: "linkbox" }, h("legend", {}, title));
   const serial = link.serial ?? { port: ports[0]?.path ?? "", baud: 9600, data_bits: 8, parity: "none", stop_bits: 1, flow: "none" };
   const tcp = link.tcp ?? { port: 15000 };
-  const portChoices = ports.map((p) => p.path);
-  if (serial.port && !portChoices.includes(serial.port)) portChoices.push(serial.port);
-  const portLabels = Object.fromEntries(ports.map((p) => [p.path, `${p.path} (${p.description || "serial port"})`]));
-  portLabels[""] = "(choose)";
 
   const serialBox = h("div", { class: "grid" },
-    h("label", {}, "Port", portChoices.length > 0
-      ? select("port", portChoices, serial.port, portLabels)
-      : h("input", { name: "port", value: serial.port, placeholder: "no serial port found; e.g. /dev/ttyUSB0 or COM3" })),
+    h("label", {}, "Port", portPicker("port", serial.port)),
     h("label", {}, "Baud rate", select("baud", BAUDS.map(String), String(serial.baud))),
     h("label", {}, "Data bits", select("data_bits", ["7", "8"], String(serial.data_bits))),
     h("label", {}, "Parity", select("parity", ["none", "even", "odd"], serial.parity)),

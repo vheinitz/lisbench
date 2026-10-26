@@ -191,3 +191,15 @@ table.edit input, table.edit select { width: 100%; min-width: 4em; padding: 3px 
 .badge.failed, .badge.cancelled, .badge.cannot-be-done, .badge.timed-out, .badge.no-order { background: var(--bad-bg); color: var(--bad); }
 .badge.waiting, .badge.connecting, .badge.sent, .badge.answered, .badge.queried, .badge.measuring,
 .badge.preliminary, .badge.ordered, .badge.stopping { background: var(--watch); }
+/* Serial port field: free text, the ports found, and a refresh button. */
+.port-picker { display: flex; gap: 4px; }
+.port-picker input { flex: 1; }
+/* Only an arrow; the choices show when it opens. Grey reads on both themes. */
+.port-picker select {
+  width: 2.2em;
+  appearance: none;
+  color: transparent;
+  cursor: pointer;
+  background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") center no-repeat;
+}
+.port-picker option { color: var(--text); background: var(--panel); }
