@@ -48,6 +48,7 @@ struct OrderItem {
     std::string test{};
     ItemState state{ItemState::created};
     bool unsolicited{false};  // came as a result without an order
+    bool review{false};       // unsolicited with policy flag: for the user to accept or discard
     std::optional<ResultData> result{};
     friend bool operator==(const OrderItem&, const OrderItem&) = default;
 };
@@ -59,13 +60,6 @@ struct Specimen {
     char priority{'R'};  // O-6: S stat, A asap, R routine
     std::vector<OrderItem> items{};
     friend bool operator==(const Specimen&, const Specimen&) = default;
-};
-
-struct Unmatched {
-    std::string specimen{};
-    std::string test{};
-    ResultData result{};
-    friend bool operator==(const Unmatched&, const Unmatched&) = default;
 };
 
 // What a received message did, for the log.
@@ -88,13 +82,14 @@ struct Outgoing {
 class OrderBook {
 public:
     [[nodiscard]] const std::vector<Specimen>& specimens() const noexcept { return specimens_; }
-    [[nodiscard]] const std::vector<Unmatched>& unmatched() const noexcept { return unmatched_; }
     [[nodiscard]] const Specimen* find(std::string_view id) const noexcept;
 
     // Editing (from the UI). Errors say why.
     std::expected<void, std::string> add_specimen(Specimen s);
     std::expected<void, std::string> remove_specimen(std::string_view id);
     std::expected<void, std::string> add_test(std::string_view specimen, std::string test);
+    std::expected<void, std::string> remove_test(std::string_view specimen, std::string_view test);
+    void clear() noexcept { specimens_.clear(); }
 
     // Orders for these specimens' items in state created (all specimens if
     // the list is empty); nullopt when there is nothing to send.
@@ -108,12 +103,14 @@ public:
                                   NoOrderReply no_order) const;
     void delivered(const Outgoing& o);
 
-    // A received message: queries to answer, results to match.
+    // A received message: queries to answer, results to match. Specimens
+    // the instrument names that are not in the book yet are added (a query:
+    // without items; a result: as the policy says), so the book can be built
+    // by listening and then edited into a scenario.
     Handled receive(const lis02::Message& m, Unsolicited policy);
 
-    // Unmatched results: take one over as an unsolicited item, or drop it.
-    std::expected<void, std::string> accept_unmatched(std::size_t index);
-    std::expected<void, std::string> discard_unmatched(std::size_t index);
+    // An item kept for review: accept it as an unsolicited result.
+    std::expected<void, std::string> accept_item(std::string_view specimen, std::string_view test);
 
     [[nodiscard]] nlohmann::json to_json() const;
     [[nodiscard]] static std::expected<OrderBook, std::string> from_json(const nlohmann::json& j);
@@ -125,8 +122,9 @@ private:
     void record_result(const std::string& specimen, const std::string& test, ResultData r,
                        Unsolicited policy, Handled& h);
 
+    Specimen& specimen_for(const std::string& id, Handled& h);
+
     std::vector<Specimen> specimens_{};
-    std::vector<Unmatched> unmatched_{};
 };
 
 // The header every lisbench simulator sends.

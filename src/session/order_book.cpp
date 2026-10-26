@@ -164,6 +164,30 @@ std::expected<void, std::string> OrderBook::add_test(std::string_view specimen, 
     return {};
 }
 
+std::expected<void, std::string> OrderBook::remove_test(std::string_view specimen,
+                                                        std::string_view test) {
+    auto* s = find_mutable(specimen);
+    if (s == nullptr) {
+        return std::unexpected(std::format("no specimen {}", specimen));
+    }
+    if (std::erase_if(s->items, [&](const OrderItem& i) { return i.test == test; }) == 0) {
+        return std::unexpected(std::format("{} has no {}", specimen, test));
+    }
+    return {};
+}
+
+std::expected<void, std::string> OrderBook::accept_item(std::string_view specimen,
+                                                        std::string_view test) {
+    if (auto* s = find_mutable(specimen)) {
+        if (auto it = std::ranges::find(s->items, test, &OrderItem::test);
+            it != s->items.end() && it->review) {
+            it->review = false;
+            return {};
+        }
+    }
+    return std::unexpected(std::format("{} {} is not kept for review", specimen, test));
+}
+
 std::optional<Outgoing> OrderBook::orders(const std::vector<std::string>& specimen_ids) const {
     auto b = start("instrument");
     Outgoing out;
@@ -286,41 +310,55 @@ void OrderBook::record_result(const std::string& specimen, const std::string& te
     }
     const auto why =
         item == nullptr ? "no order" : std::format("order is {}", to_string(item->state));
-    switch (policy) {
-        case Unsolicited::accept: {
-            if (s == nullptr) {
-                specimens_.push_back({.id = specimen});
-                s = &specimens_.back();
-            }
-            if (item == nullptr) {
-                s->items.push_back({.test = test});
-                item = &s->items.back();
-            }
-            item->unsolicited = true;
-            item->state = state_for(r.status, ItemState::created);
-            item->result = std::move(r);
-            h.notes.push_back(
-                std::format("{} {}: unsolicited ({}), accepted", specimen, test, why));
-            h.changed = true;
-            return;
-        }
-        case Unsolicited::flag:
-            unmatched_.push_back({.specimen = specimen, .test = test, .result = std::move(r)});
-            h.notes.push_back(
-                std::format("{} {}: unsolicited ({}), kept for review", specimen, test, why));
-            h.changed = true;
-            return;
-        case Unsolicited::ignore:
-            h.notes.push_back(std::format("{} {}: unsolicited ({}), ignored", specimen, test, why));
-            return;
+    if (policy == Unsolicited::ignore) {
+        h.notes.push_back(std::format("{} {}: unsolicited ({}), ignored", specimen, test, why));
+        return;
     }
+    if (s == nullptr) {
+        s = &specimen_for(specimen, h);
+    }
+    if (item == nullptr) {
+        s->items.push_back({.test = test});
+        item = &s->items.back();
+    }
+    item->unsolicited = true;
+    item->review = policy == Unsolicited::flag;
+    item->state = state_for(r.status, ItemState::created);
+    item->result = std::move(r);
+    h.notes.push_back(std::format("{} {}: unsolicited ({}), {}", specimen, test, why,
+                                  item->review ? "kept for review" : "accepted"));
+    h.changed = true;
+}
+
+Specimen& OrderBook::specimen_for(const std::string& id, Handled& h) {
+    if (auto* s = find_mutable(id)) {
+        return *s;
+    }
+    specimens_.push_back({.id = id});
+    h.changed = true;
+    return specimens_.back();
 }
 
 Handled OrderBook::receive(const lis02::Message& m, Unsolicited policy) {
     Handled h;
     std::string specimen;
+    std::string patient_id;
+    std::string patient_name;
     for (const auto& r : m.records) {
         switch (r.kind().value_or(RecordType::comment)) {
+            case RecordType::patient: {
+                // P-3, or P-4 as instruments that number their own patients send it.
+                patient_id = get(r, RecordType::patient, "practice_patient_id");
+                if (patient_id.empty()) {
+                    patient_id = get(r, RecordType::patient, "laboratory_patient_id");
+                }
+                // Last^First as sent, without the further components.
+                const auto& last = get(r, RecordType::patient, "patient_name", 0);
+                const auto& first = get(r, RecordType::patient, "patient_name", 1);
+                patient_name = first.empty() ? last : std::format("{}^{}", last, first);
+                specimen.clear();
+                break;
+            }
             case RecordType::query: {
                 // Q-3 starting range: ALL, or ^specimen^... (component 2), or the ID itself.
                 const auto& c1 = get(r, RecordType::query, "starting_range_id", 0);
@@ -339,6 +377,10 @@ Handled OrderBook::receive(const lis02::Message& m, Unsolicited policy) {
                 }
                 const auto& asked = c2.empty() ? c1 : c2;
                 h.notes.push_back(std::format("query for {}", h.query_all ? "all" : asked));
+                if (!h.query_all && !asked.empty() && find(asked) == nullptr) {
+                    (void)specimen_for(asked, h);
+                    h.notes.push_back(std::format("{}: new in the order book, no tests", asked));
+                }
                 break;
             }
             case RecordType::order: specimen = get(r, RecordType::order, "specimen_id"); break;
@@ -356,6 +398,12 @@ Handled OrderBook::receive(const lis02::Message& m, Unsolicited policy) {
                     break;
                 }
                 record_result(specimen, test, std::move(d), policy, h);
+                // The patient of a specimen the book learned without one.
+                if (auto* s = find_mutable(specimen);
+                    s != nullptr && s->patient_id.empty() && s->patient_name.empty()) {
+                    s->patient_id = patient_id;
+                    s->patient_name = patient_name;
+                }
                 break;
             }
             default: break;
@@ -364,32 +412,15 @@ Handled OrderBook::receive(const lis02::Message& m, Unsolicited policy) {
     return h;
 }
 
-std::expected<void, std::string> OrderBook::accept_unmatched(std::size_t index) {
-    if (index >= unmatched_.size()) {
-        return std::unexpected("no such unmatched result");
-    }
-    auto u = std::move(unmatched_[index]);
-    unmatched_.erase(unmatched_.begin() + static_cast<std::ptrdiff_t>(index));
-    Handled h;
-    record_result(u.specimen, u.test, std::move(u.result), Unsolicited::accept, h);
-    return {};
-}
-
-std::expected<void, std::string> OrderBook::discard_unmatched(std::size_t index) {
-    if (index >= unmatched_.size()) {
-        return std::unexpected("no such unmatched result");
-    }
-    unmatched_.erase(unmatched_.begin() + static_cast<std::ptrdiff_t>(index));
-    return {};
-}
-
 json OrderBook::to_json() const {
     json specimens = json::array();
     for (const auto& s : specimens_) {
         json items = json::array();
         for (const auto& i : s.items) {
-            json item = {
-                {"test", i.test}, {"state", to_string(i.state)}, {"unsolicited", i.unsolicited}};
+            json item = {{"test", i.test},
+                         {"state", to_string(i.state)},
+                         {"unsolicited", i.unsolicited},
+                         {"review", i.review}};
             if (i.result) {
                 item["result"] = result_json(*i.result);
             }
@@ -401,12 +432,7 @@ json OrderBook::to_json() const {
                              {"priority", std::string(1, s.priority)},
                              {"items", std::move(items)}});
     }
-    json unmatched = json::array();
-    for (const auto& u : unmatched_) {
-        unmatched.push_back(
-            {{"specimen", u.specimen}, {"test", u.test}, {"result", result_json(u.result)}});
-    }
-    return {{"specimens", std::move(specimens)}, {"unmatched", std::move(unmatched)}};
+    return {{"specimens", std::move(specimens)}};
 }
 
 std::expected<OrderBook, std::string> OrderBook::from_json(const json& j) {
@@ -418,7 +444,9 @@ std::expected<OrderBook, std::string> OrderBook::from_json(const json& j) {
                         .patient_name = s.value("patient_name", ""),
                         .priority = s.value("priority", std::string{"R"}).front()};
             for (const auto& i : s.at("items")) {
-                OrderItem item{.test = i.at("test"), .unsolicited = i.value("unsolicited", false)};
+                OrderItem item{.test = i.at("test"),
+                               .unsolicited = i.value("unsolicited", false),
+                               .review = i.value("review", false)};
                 const auto state = i.at("state").get<std::string>();
                 const auto it = std::ranges::find(state_names, state);
                 if (it == state_names.end()) {
@@ -432,10 +460,11 @@ std::expected<OrderBook, std::string> OrderBook::from_json(const json& j) {
             }
             b.specimens_.push_back(std::move(sp));
         }
+        // State files before 0.8.1 kept results for review in a separate list.
         for (const auto& u : j.value("unmatched", json::array())) {
-            b.unmatched_.push_back({.specimen = u.at("specimen"),
-                                    .test = u.at("test"),
-                                    .result = result_of(u.at("result"))});
+            Handled h;
+            b.record_result(u.at("specimen"), u.at("test"), result_of(u.at("result")),
+                            Unsolicited::flag, h);
         }
         return b;
     } catch (const json::exception& e) {

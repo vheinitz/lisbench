@@ -610,11 +610,9 @@ struct App::State {
         });
         // LIS order book.
         post("/api/lis/specimen", [this](const json& b) {
-            session::Specimen sp{
-                .id = text(b, "id"),
-                .patient_id = text(b, "patient_id"),
-                .patient_name = text(b, "patient_name"),
-                .priority = text(b, "priority").empty() ? 'R' : text(b, "priority").front()};
+            session::Specimen sp{.id = text(b, "id"),
+                                 .patient_id = text(b, "patient_id"),
+                                 .patient_name = text(b, "patient_name")};
             const auto tests = field<std::vector<std::string>>(b, "tests", {});
             return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
                 if (auto r = book.add_specimen(sp); !r) {
@@ -649,15 +647,24 @@ struct App::State {
             return result(
                 manager().cancel_item(text(b, "session"), text(b, "specimen"), text(b, "test")));
         });
-        post("/api/lis/unmatched", [this](const json& b) {
-            const auto index = field<std::size_t>(b, "index", 0);
-            const auto action = text(b, "action");
-            if (action != "accept" && action != "discard") {
-                return error(400, "action is accept or discard");
-            }
+        post("/api/lis/test/delete", [this](const json& b) {
+            const auto specimen = text(b, "specimen");
+            const auto test = text(b, "test");
             return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
-                return action == "accept" ? book.accept_unmatched(index)
-                                          : book.discard_unmatched(index);
+                return book.remove_test(specimen, test);
+            }));
+        });
+        post("/api/lis/accept", [this](const json& b) {
+            const auto specimen = text(b, "specimen");
+            const auto test = text(b, "test");
+            return result(manager().edit_book(text(b, "session"), [&](session::OrderBook& book) {
+                return book.accept_item(specimen, test);
+            }));
+        });
+        post("/api/lis/clear", [this](const json& b) {
+            return result(manager().edit_book(text(b, "session"), [](session::OrderBook& book) {
+                book.clear();
+                return std::expected<void, std::string>{};
             }));
         });
     }

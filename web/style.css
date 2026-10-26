@@ -189,7 +189,7 @@ table.edit input, table.edit select { width: 100%; min-width: 4em; padding: 3px 
 .badge { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--neutral-bg); white-space: nowrap; }
 .badge.running, .badge.connected, .badge.final, .badge.reported, .badge.corrected { background: var(--good-bg); color: var(--good); }
 .badge.failed, .badge.cancelled, .badge.cannot-be-done, .badge.timed-out, .badge.no-order { background: var(--bad-bg); color: var(--bad); }
-.badge.waiting, .badge.connecting, .badge.sent, .badge.answered, .badge.queried, .badge.measuring,
+.badge.waiting, .badge.for-review, .badge.connecting, .badge.sent, .badge.answered, .badge.queried, .badge.measuring,
 .badge.preliminary, .badge.ordered, .badge.stopping { background: var(--watch); }
 /* Serial port field: free text, the ports found, and a refresh button. */
 .port-picker { display: flex; gap: 4px; }
@@ -203,3 +203,5 @@ table.edit input, table.edit select { width: 100%; min-width: 4em; padding: 3px 
   background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") center no-repeat;
 }
 .port-picker option { color: var(--text); background: var(--panel); }
+.item .small { margin-left: 4px; }
+select.add-test { padding: 2px 6px; font-size: 12px; margin-top: 4px; }

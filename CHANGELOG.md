@@ -5,6 +5,15 @@
 - Web UI: serial port fields are editable comboboxes: free text, a list of
   the ports found on the computer running lisbench, and a button that asks
   for them again (updates every port field on the page).
+- LIS simulator: the order book builds itself from the messages: a query
+  for an unknown specimen adds it, results without an order add specimen
+  and test (with the patient from the P record). Results kept for review
+  are items in the book with accept / discard instead of a separate list
+  (state files with the old list are read). Tests are added per specimen
+  from a catalogue choice and removed with one click; "Clear order book"
+  (two clicks) empties it. The priority column and field are gone.
+- API: `/api/lis/unmatched` replaced by `/api/lis/accept` and
+  `/api/lis/test/delete`; new `/api/lis/clear`.
 
 ## 0.8.0 – 2026-10-26
 

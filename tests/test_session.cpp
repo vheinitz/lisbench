@@ -177,7 +177,7 @@ TEST_CASE("order book: host query through to final, item states follow the messa
     CHECK(b.find("S-1")->items[0].result->flags == "H");
     (void)report("C", "139");
     CHECK(state_of(b, "S-1", "GLU") == "corrected");
-    CHECK(b.unmatched().empty());
+    CHECK_FALSE(b.find("S-1")->items[0].review);
 
     // Saved and restored as it was.
     CHECK(OrderBook::from_json(b.to_json()).value() == b);
@@ -235,16 +235,18 @@ TEST_CASE("order book: unsolicited results by policy") {
         CHECK(h.notes.at(0).contains("ignored"));
     }
     {
+        // In the book, marked for review: accept keeps it, discard removes it.
         OrderBook b;
         (void)b.receive(result, Unsolicited::flag);
-        CHECK(b.specimens().empty());
-        REQUIRE(b.unmatched().size() == 1);
-        CHECK(b.unmatched()[0].specimen == "S-9");
-        REQUIRE(b.accept_unmatched(0));
-        CHECK(b.unmatched().empty());
         CHECK(state_of(b, "S-9", "GLU") == "final");
+        CHECK(b.find("S-9")->items[0].review);
+        REQUIRE(b.accept_item("S-9", "GLU"));
+        CHECK_FALSE(b.find("S-9")->items[0].review);
         CHECK(b.find("S-9")->items[0].unsolicited);
-        CHECK_FALSE(b.discard_unmatched(0));
+        CHECK_FALSE(b.accept_item("S-9", "GLU"));  // not for review any more
+        REQUIRE(b.remove_test("S-9", "GLU"));
+        CHECK(b.find("S-9")->items.empty());
+        CHECK_FALSE(b.remove_test("S-9", "GLU"));
     }
     {
         OrderBook b;
@@ -258,10 +260,41 @@ TEST_CASE("order book: unsolicited results by policy") {
         REQUIRE(b.add_specimen({.id = "S-9"}));
         REQUIRE(b.add_test("S-9", "GLU"));
         const auto h = b.receive(result, Unsolicited::flag);
-        CHECK(state_of(b, "S-9", "GLU") == "new");
-        CHECK(b.unmatched().size() == 1);
+        CHECK(state_of(b, "S-9", "GLU") == "final");
+        CHECK(b.find("S-9")->items[0].review);
         CHECK(h.notes.at(0).contains("order is new"));
     }
+}
+
+TEST_CASE("order book: built from what the instrument sends") {
+    OrderBook b;
+    // A query for an unknown specimen adds it without tests; the answer is still "no order".
+    const auto h =
+        b.receive(message({"H|\\^&|||uno", "Q|1|^S-5||ALL||||||||O", "L|1|N"}), Unsolicited::flag);
+    CHECK(h.changed);
+    REQUIRE(b.find("S-5") != nullptr);
+    CHECK(b.find("S-5")->items.empty());
+    CHECK(b.answer(*h.query, false, NoOrderReply::y_record).records.at(2).contains("||Y"));
+    // A test added in the UI is answered on the next query.
+    REQUIRE(b.add_test("S-5", "GLU"));
+    CHECK(b.answer(*h.query, false, NoOrderReply::y_record).records.back() == "L|1|F");
+    // A result brings its patient along.
+    (void)b.receive(message({"H|\\^&|||uno", "P|1||PID-7||Doe^Jane^Q", "O|1|S-6||^^^K",
+                             "R|1|^^^K|4.1|mmol/L||N||F", "L|1|N"}),
+                    Unsolicited::accept);
+    REQUIRE(b.find("S-6") != nullptr);
+    CHECK(b.find("S-6")->patient_id == "PID-7");
+    CHECK(b.find("S-6")->patient_name == "Doe^Jane");
+    b.clear();
+    CHECK(b.specimens().empty());
+}
+
+TEST_CASE("order book: old state files with a list for review") {
+    const auto j = nlohmann::json::parse(R"({"specimens": [], "unmatched": [
+        {"specimen": "U-1", "test": "GLU", "result": {"value": "90", "status": "F"}}]})");
+    const auto b = OrderBook::from_json(j).value();
+    REQUIRE(b.find("U-1") != nullptr);
+    CHECK(b.find("U-1")->items.at(0).review);
 }
 
 TEST_CASE("device model: specimens, query, answer, stable results") {
@@ -327,7 +360,7 @@ TEST_CASE("LIS and instrument models together: Q, O, R without a wire") {
     (void)lis.receive(message(dev.results(s)), Unsolicited::flag);
     CHECK(state_of(lis, "S-00001", "GLU") == "final");
     CHECK(lis.find("S-00001")->items[0].result->value == s.values[0]);
-    CHECK(lis.unmatched().empty());
+    CHECK_FALSE(lis.find("S-00001")->items[0].review);
 }
 
 // --- running sessions ------------------------------------------------------------
@@ -434,10 +467,10 @@ TEST_CASE("session manager: one LIS and two instruments on one event loop") {
     // S-1: asked, answered, measured, final. S-2: no order. U-1: unsolicited, kept for review.
     const auto book = OrderBook::from_json(lis["state"]).value();
     CHECK(state_of(book, "S-1", "GLU") == "final");
-    CHECK(book.unmatched().empty());
+    CHECK_FALSE(book.find("S-1")->items[0].review);
     const auto book2 = OrderBook::from_json(lis2["state"]).value();
-    REQUIRE(book2.unmatched().size() == 1);
-    CHECK(book2.unmatched()[0].specimen == "U-1");
+    REQUIRE(book2.find("U-1") != nullptr);
+    CHECK(book2.find("U-1")->items.at(0).review);
     std::map<std::string, std::string> specimen_states;
     for (const auto& s : asking["state"]["specimens"]) {
         specimen_states[s["id"]] = s["state"];

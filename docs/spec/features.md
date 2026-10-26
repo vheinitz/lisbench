@@ -296,10 +296,19 @@ lis:
   send_mode: on-demand          # on-demand (button / API) | on-connect
 ```
 
-Order book: a table of specimens (specimen ID, patient ID, name, priority
-O-6) with their order items (test code from the catalogue). Results table:
-per item value, unit, flags, result status (R-9), operator, time. Both are
-edited in the UI and kept in the state file.
+Order book: a table of specimens (specimen ID, patient ID, name) with their
+order items (test code from the catalogue) and per item the result: value,
+unit, flags, result status (R-9), operator, time. O-6 priority goes out as
+`R` (routine); the UI does not offer it (2026-10-26). The book is edited in
+the UI and kept in the state file; "clear" empties it.
+
+The book also builds itself from what the instrument sends (2026-10-26,
+"Bitte die Tabellen … aus den Nachrichten aufbauen. Wenn Gerät es sendet und
+sample oder test noch nicht da sind, in die db aufnehmen"): a Q for a
+specimen not in the book adds it without items, a result adds specimen and
+item as `unsolicited` below, and the patient (P-3, else P-4; P-6) is taken
+over for a specimen that has none. Listening for a while and then adding or
+removing catalogue tests per specimen gives a scenario without typing codes.
 
 Order item states, named after the LIS02-A2 codes where one exists:
 
@@ -316,8 +325,8 @@ Order item states, named after the LIS02-A2 codes where one exists:
 
 A result for a `new` item (never sent) counts as unsolicited. With
 `unsolicited: accept` the result creates the item in state `final` (or as
-reported) marked "unsolicited"; `flag` keeps it in a list of unmatched
-results for the user to assign or discard; `ignore` only logs it. A Q for a
+reported) marked "unsolicited"; `flag` does the same and marks it "for
+review" until the user accepts or discards it; `ignore` only logs it. A Q for a
 specimen without items is answered as set in `no_order_reply`.
 
 With separate `orders` and `results` links, Q in and O out use `orders`, R

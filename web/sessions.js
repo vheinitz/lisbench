@@ -24,11 +24,10 @@
  *            values: string[], abnormal: string[]}} TestDef
  * @typedef {{value: string, unit: string, flags: string, status: string, operator: string,
  *            completed_at: string}} ResultData
- * @typedef {{test: string, state: string, unsolicited: boolean, result?: ResultData}} OrderItem
- * @typedef {{id: string, patient_id: string, patient_name: string, priority: string,
- *            items: OrderItem[]}} Specimen
- * @typedef {{specimens: Specimen[], unmatched: {specimen: string, test: string,
- *            result: ResultData}[]}} Book
+ * @typedef {{test: string, state: string, unsolicited: boolean, review: boolean,
+ *            result?: ResultData}} OrderItem
+ * @typedef {{id: string, patient_id: string, patient_name: string, items: OrderItem[]}} Specimen
+ * @typedef {{specimens: Specimen[]}} Book
  * @typedef {{id: string, state: string, tests: string[], values: string[], note: string}} DevSpecimen
  * @typedef {{t: string, text: string, lines: string[]}} LogEntry
  */
@@ -589,56 +588,78 @@ function lisView(session, body) {
     h("div", { class: "grid" },
       h("label", {}, "Specimen ID", h("input", { name: "id", required: true, placeholder: "e.g. S-00001" })),
       h("label", {}, "Patient ID", h("input", { name: "patient_id" })),
-      h("label", {}, "Patient name", h("input", { name: "patient_name", placeholder: "Last^First" })),
-      h("label", {}, "Priority", select("priority", ["R", "S", "A"], "R", { R: "routine", S: "stat", A: "as soon as possible" }))),
+      h("label", {}, "Patient name", h("input", { name: "patient_name", placeholder: "Last^First" }))),
     h("fieldset", {}, h("legend", {}, "Tests"), tests.el),
     h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Add to the order book")));
   addForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
     api("/api/lis/specimen", { session, id: input(addForm, "id").value.trim(),
       patient_id: input(addForm, "patient_id").value.trim(), patient_name: input(addForm, "patient_name").value.trim(),
-      priority: input(addForm, "priority").value, tests: tests.get() })
+      tests: tests.get() })
       .then(() => { input(addForm, "id").value = ""; }).catch(toast);
   });
   const table = h("table", { class: "results" });
-  const unmatched = h("div");
+  // Two clicks, so that one slip does not lose a recorded scenario.
+  const clear = h("button", { type: "button" }, "Clear order book");
+  clear.addEventListener("click", () => {
+    if (clear.dataset.armed) {
+      delete clear.dataset.armed;
+      clear.textContent = "Clear order book";
+      api("/api/lis/clear", { session }).catch(toast);
+      return;
+    }
+    clear.dataset.armed = "1";
+    clear.textContent = "Really clear all specimens?";
+    window.setTimeout(() => { delete clear.dataset.armed; clear.textContent = "Clear order book"; }, 4000);
+  });
   body.append(addForm, h("div", { class: "toolbar" }, h("h3", {}, "Order book"),
-    h("button", { type: "button", onclick: guarded(() => api("/api/lis/send", { session, specimens: [] })) }, "Send all new orders")),
-    table, unmatched);
+    h("button", { type: "button", onclick: guarded(() => api("/api/lis/send", { session, specimens: [] })) }, "Send all new orders"),
+    clear),
+    h("p", { class: "muted" }, "Specimens and tests the instrument sends or asks for are added here; " +
+      "add or remove tests to build a scenario."),
+    table);
+
+  /** @param {string} specimen @param {string} test @param {string} label @param {string} path */
+  const itemButton = (specimen, test, label, path) => h("button", { type: "button", class: "small",
+    onclick: guarded(() => api(path, { session, specimen, test })) }, label);
+
+  /** A catalogue test to add to a specimen. @param {Specimen} s */
+  const addTest = (s) => {
+    const have = new Set(s.items.map((i) => i.test));
+    const left = catalog.filter((t) => !have.has(t.code));
+    if (left.length === 0) return null;
+    const choice = /** @type {HTMLSelectElement} */ (h("select", { class: "add-test", "aria-label": `add a test to ${s.id}` },
+      h("option", { value: "" }, "+ test"), ...left.map((t) => h("option", { value: t.code }, `${t.code} ${t.name}`))));
+    choice.addEventListener("change", () => {
+      if (choice.value !== "") api("/api/lis/test", { session, specimen: s.id, test: choice.value }).catch(toast);
+    });
+    return choice;
+  };
 
   /** @param {Book} book */
   return (book) => {
     table.replaceChildren(h("thead", {}, h("tr", {},
-      ...["Specimen", "Patient", "Priority", "Tests: state and result", ""].map((t) => h("th", {}, t)))));
+      ...["Specimen", "Patient", "Tests: state and result", ""].map((t) => h("th", {}, t)))));
     const tb = h("tbody");
-    if (book.specimens.length === 0) tb.append(h("tr", {}, h("td", { colspan: 5, class: "muted" }, "No specimens yet.")));
+    if (book.specimens.length === 0) tb.append(h("tr", {}, h("td", { colspan: 4, class: "muted" }, "No specimens yet.")));
     for (const s of book.specimens) {
       const hasNew = s.items.some((i) => i.state === "new");
       tb.append(h("tr", {},
         h("td", {}, s.id),
         h("td", {}, [s.patient_id, s.patient_name].filter(Boolean).join(" ")),
-        h("td", {}, s.priority),
         h("td", {}, ...s.items.map((i) => h("div", { class: "item" },
-          h("b", {}, i.test), " ", badge(i.state), i.unsolicited ? h("span", { class: "muted" }, " unsolicited") : null,
-          i.result ? ` ${i.result.value} ${i.result.unit} ${i.result.flags}` : "",
-          (i.state === "sent" || i.state === "answered") && h("button", { type: "button", class: "small",
-            onclick: guarded(() => api("/api/lis/cancel", { session, specimen: s.id, test: i.test })) }, "cancel")))),
+          h("b", {}, i.test), " ", badge(i.state),
+          i.review ? h("span", {}, " ", badge("for-review")) : i.unsolicited ? h("span", { class: "muted" }, " unsolicited") : null,
+          i.result ? ` ${i.result.value} ${i.result.unit} ${i.result.flags}` : "", " ",
+          i.review && itemButton(s.id, i.test, "accept", "/api/lis/accept"),
+          (i.state === "sent" || i.state === "answered") && itemButton(s.id, i.test, "cancel", "/api/lis/cancel"),
+          itemButton(s.id, i.test, i.review ? "discard" : "remove", "/api/lis/test/delete"))),
+          addTest(s)),
         h("td", { class: "actions" },
           hasNew && h("button", { type: "button", class: "small", onclick: guarded(() => api("/api/lis/send", { session, specimens: [s.id] })) }, "Send"),
           h("button", { type: "button", class: "small", onclick: guarded(() => api("/api/lis/specimen/delete", { session, id: s.id })) }, "Delete"))));
     }
     table.append(tb);
-    unmatched.replaceChildren();
-    if (book.unmatched.length > 0) {
-      unmatched.append(h("h3", {}, "Results without an order (for review)"), h("table", { class: "results" },
-        h("thead", {}, h("tr", {}, ...["Specimen", "Test", "Result", "Status", ""].map((t) => h("th", {}, t)))),
-        h("tbody", {}, ...book.unmatched.map((u, index) => h("tr", {},
-          h("td", {}, u.specimen), h("td", {}, u.test),
-          h("td", {}, `${u.result.value} ${u.result.unit} ${u.result.flags}`), h("td", {}, u.result.status),
-          h("td", { class: "actions" },
-            h("button", { type: "button", class: "small", onclick: guarded(() => api("/api/lis/unmatched", { session, index, action: "accept" })) }, "Accept"),
-            h("button", { type: "button", class: "small", onclick: guarded(() => api("/api/lis/unmatched", { session, index, action: "discard" })) }, "Discard")))))));
-    }
   };
 }
 
