@@ -12,7 +12,7 @@
  * @typedef {{port: string, baud: number, data_bits: number, parity: string,
  *            stop_bits: number, flow: string}} SerialCfg
  * @typedef {{role: string, transport: "serial" | "tcp-server" | "tcp-client",
- *            serial?: SerialCfg, tcp?: {address?: string, host?: string, port: number}}} LinkCfg
+ *            low_level?: string, serial?: SerialCfg, tcp?: {address?: string, host?: string, port: number}}} LinkCfg
  * @typedef {{lisbench: string, name: string, type: "lis" | "device", profile: string,
  *            timing: string, links: LinkCfg[],
  *            lis?: {unsolicited: string, answer_queries: boolean, no_order_reply: string},
@@ -391,23 +391,32 @@ function linkEditor(link, title) {
     ["serial", "Serial port"], ["tcp-server", "Network: wait for the partner to connect"],
     ["tcp-client", "Network: connect to the partner"]], link.transport, showFor);
   showFor(link.transport);
-  box.append(transport.el, serialBox, serverBox, clientBox);
+  // How the messages are carried; LIS01-A2 is the standard, the others are
+  // seen on TCP (and the same as on the wire behind a serial device server).
+  const lowLevel = h("div", { class: "grid" },
+    h("label", {}, "Low-level protocol", select("low_level", ["lis01-a2", "none", "mllp"], link.low_level ?? "lis01-a2", {
+      "lis01-a2": "LIS01-A2 (ENQ, frames, ACK, EOT)",
+      none: "none: records with CR, message ends with L",
+      mllp: "MLLP block (VT ... FS CR)",
+    })));
+  box.append(transport.el, serialBox, serverBox, clientBox, lowLevel);
   return {
     el: box,
     /** @returns {LinkCfg} */
     get: () => {
       const t = /** @type {LinkCfg["transport"]} */ (transport.get());
+      const low_level = input(lowLevel, "low_level").value;
       if (t === "serial") {
-        return { role: link.role, transport: t, serial: {
+        return { role: link.role, transport: t, low_level, serial: {
           port: input(serialBox, "port").value, baud: Number(input(serialBox, "baud").value),
           data_bits: Number(input(serialBox, "data_bits").value), parity: input(serialBox, "parity").value,
           stop_bits: Number(input(serialBox, "stop_bits").value), flow: input(serialBox, "flow").value } };
       }
       if (t === "tcp-server") {
-        return { role: link.role, transport: t, tcp: { address: input(serverBox, "address").value,
+        return { role: link.role, transport: t, low_level, tcp: { address: input(serverBox, "address").value,
           port: Number(input(serverBox, "server_port").value) } };
       }
-      return { role: link.role, transport: t, tcp: { host: input(clientBox, "host").value.trim(),
+      return { role: link.role, transport: t, low_level, tcp: { host: input(clientBox, "host").value.trim(),
         port: Number(input(clientBox, "client_port").value) } };
     },
   };

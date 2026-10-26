@@ -31,13 +31,16 @@ struct Pair {
 };
 
 // LIS listens on an ephemeral port, the instrument connects to it.
-Pair run_pair(sim::Scenario instrument, sim::Scenario lis) {
+Pair run_pair(sim::Scenario instrument, sim::Scenario lis,
+              LowLevel low_level = LowLevel::lis01_a2) {
     asio::io_context io;
     auto acceptor = io::make_acceptor(io.get_executor(),
                                       io::Tcp{.host = "127.0.0.1", .port = 0, .listen = true});
-    instrument.endpoint =
-        io::Tcp{.host = "127.0.0.1", .port = acceptor.local_endpoint().port(), .listen = false};
-    lis.endpoint = io::Tcp{.host = "127.0.0.1", .port = 0, .listen = true};
+    instrument.endpoint = io::Tcp{.host = "127.0.0.1",
+                                  .port = acceptor.local_endpoint().port(),
+                                  .listen = false,
+                                  .low_level = low_level};
+    lis.endpoint = io::Tcp{.host = "127.0.0.1", .port = 0, .listen = true, .low_level = low_level};
     Pair result;
     sim::Observers lis_obs;
     lis_obs.session.on_transfer = [&result](const io::Transfer& t) {
@@ -79,6 +82,43 @@ TEST_CASE("e2e: results up, query answered with orders") {
     REQUIRE(r.lis_received.size() == 2);
     CHECK(r.lis_received[0].records.size() == 7);
     CHECK(r.lis_received[0].complete);
+}
+
+TEST_CASE("e2e: results up and query answered without LIS01-A2, none and MLLP") {
+    for (const auto low_level : {LowLevel::none, LowLevel::mllp}) {
+        INFO(to_string(low_level));
+        sim::Scenario instrument{
+            .name = "instrument", .role = lis01::Role::instrument, .timing = fast_timing()};
+        instrument.steps = {
+            sim::SendStep{.records = corpus("valid_result_upload.astm"), .source = "results"},
+            sim::SendStep{.records = corpus("valid_host_query.astm"), .source = "query"},
+            sim::ExpectStep{.within = 2s, .records = 7, .contains = {"O|1|S-1003"}, .valid = true},
+        };
+        sim::Scenario lis{.name = "lis",
+                          .role = lis01::Role::computer,
+                          .timing = fast_timing(),
+                          .answer_queries = corpus("valid_order_download.astm")};
+        const auto r = run_pair(instrument, lis, low_level);
+        INFO((r.instrument.steps.empty() ? std::string{} : r.instrument.steps.back().text));
+        CHECK(r.instrument.ok);
+        REQUIRE(r.lis_received.size() == 2);
+        CHECK(r.lis_received[0].records.size() == 7);
+        CHECK(r.lis_received[0].complete);
+    }
+}
+
+TEST_CASE("e2e: faults need LIS01-A2") {
+    sim::Scenario instrument{.name = "instrument", .role = lis01::Role::instrument};
+    instrument.faults = {io::parse_fault("ack:1:nak").value()};
+    instrument.endpoint = io::Tcp{.host = "127.0.0.1", .port = 1, .low_level = LowLevel::none};
+    asio::io_context io;
+    sim::Report report;
+    asio::co_spawn(io, sim::run(instrument, {}),
+                   [&](const std::exception_ptr&, sim::Report r) { report = std::move(r); });
+    io.run_for(5s);
+    CHECK_FALSE(report.ok);
+    REQUIRE_FALSE(report.steps.empty());
+    CHECK(report.steps.back().text.find("LIS01-A2") != std::string::npos);
 }
 
 TEST_CASE("e2e: refused and corrupted frames are repeated, the message still arrives") {

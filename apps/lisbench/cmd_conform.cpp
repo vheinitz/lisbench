@@ -59,6 +59,11 @@ int cmd_conform(const ConformFlags& flags) {
         println(stderr, "conform: {}", endpoint.error());
         return 2;
     }
+    if (io::low_level_of(*endpoint) != LowLevel::lis01_a2) {
+        // The test cases check LIS01-A2 rules; without it there is nothing to test.
+        println(stderr, "conform: tests LIS01-A2 only; drop low-level= from the endpoint");
+        return 2;
+    }
 
     println("lisbench {} conformance test, LIS01-A2", LISBENCH_VERSION);
     println("IUT: {} at {}; profile (PICS): {}; timing: {}", flags.iut, io::to_string(*endpoint),

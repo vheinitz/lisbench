@@ -249,6 +249,7 @@ timing: lis01-a2                # lis01-a2 | fast-test
 links:
   - role: main                  # device: main; lis: main, or orders + results
     transport: serial           # serial | tcp-server | tcp-client
+    low_level: lis01-a2         # lis01-a2 | none | mllp (9.10)
     serial: {port: /dev/ttyUSB1, baud: 9600, data_bits: 8, parity: none,
              stop_bits: 1, flow: none}
   # - role: results
@@ -386,3 +387,30 @@ send timeout and retries per message, write-back).
 | v0.8 (done) | session files and state files, catalogue, session manager (several instances, port conflicts), home tab, LIS simulator (order book, item states, matching, unsolicited policy, queries), instrument simulator (`unsolicited`, `host-query`), `lisbench run`; Uno sketch with a host-query mode | unit tests of file checking, item states and matching; end to end: two instrument sessions and one LIS session on one loop, host query through to `final`; unsolicited result handled per policy; on the Uno: Q → O → R |
 | v0.9 | separate orders/results links, `batch` mode, monitor and conform as session types | LIS with two ports against an instrument with two links |
 | v0.10 | export sessions with the mapping editor and preview | a mapping built in the editor gives the same message as the hand-written file |
+
+### 9.10 Links without LIS01-A2
+
+Added 2026-10-26 on request: "In webview braucht man schon die
+Möglichkeit, alle Parameter, die in CLI sind, einzustellen, u.A. lis 01
+wrapping, auch für Netzwerkverbindung … so ein Proxy-Modus lis01-02 und
+lis 02-01 wäre auch sehr nützlich."
+
+LIS02-A2 does not depend on LIS01-A2. On TCP, three ways of carrying a
+message are seen; every link (session, `sim`, `monitor`, `bridge`, `map`)
+chooses one, in a session file as `low_level`, in a URI as
+`?low-level=` (serial: `&low-level=`):
+
+| `low_level` | On the wire | End of a message |
+|---|---|---|
+| `lis01-a2` (default) | ENQ, frames with checksum, ACK/NAK, EOT | EOT |
+| `none` | records, each ended by CR (an LF after it is ignored) | the L record; an H record before it ends the old one as incomplete |
+| `mllp` | HL7 MLLP block: VT (0x0B) … FS (0x1C) CR | FS |
+
+Without LIS01-A2 nothing is acknowledged: a message counts as delivered
+once it is handed to the stream. A message that stops arriving ends as
+incomplete after the receive timeout. LIS01-A2 control characters on such a
+link are dropped and reported once per message (the partner probably uses
+LIS01-A2). Fault injection and the conformance test need LIS01-A2. A
+monitor or bridge passes bytes on unchanged, so both sides must use the
+same; converting between them is the gateway session type (planned next:
+whole messages are forwarded between a LIS01-A2 link and one without).

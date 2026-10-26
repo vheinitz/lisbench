@@ -148,7 +148,10 @@ asio::awaitable<void> send_jobs(io::Session* session, SendContext* c) {
 
 asio::awaitable<bool> send_all(io::Endpoint endpoint, lis01::Role role, SendContext c) {
     auto stream = co_await io::connect(endpoint);
-    io::Session session{std::move(stream), {.role = role, .timing = {}, .faults = {}}, {}};
+    io::Session session{
+        std::move(stream),
+        {.role = role, .timing = {}, .faults = {}, .low_level = io::low_level_of(endpoint)},
+        {}};
     using namespace asio::experimental::awaitable_operators;
     co_await (session.run() && send_jobs(&session, &c));
     co_return c.all_ok;

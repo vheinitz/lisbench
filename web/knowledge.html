@@ -155,7 +155,9 @@
 <ul>
   <li class="note-conv">Over TCP/IP the data link layer is usually kept unchanged (ENQ/ACK, frames, EOT) on a plain
     socket. Which side listens differs per instrument and must be configured. Some instruments drop the link layer on
-    TCP and send bare records ending with CR, or wrap the message in an HL7-style MLLP envelope.</li>
+    TCP and send bare records ending with CR, or wrap the message in an HL7-style MLLP envelope. lisbench: the link
+    setting <em>Low-level protocol</em> (<code>none</code>, <code>mllp</code>), in URIs <code>?low-level=</code>.
+    Without LIS01-A2 nothing acknowledges a message; the TCP acknowledgement only says it reached the other kernel.</li>
   <li class="note-conv">One record per frame, split with ETB only when longer than 240 characters. Some senders pack
     several records into one frame; a robust receiver accepts both.</li>
   <li class="note-issue">Checksum in lower-case hex, or computed without FN, or including STX.</li>

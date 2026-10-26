@@ -26,7 +26,31 @@ std::expected<unsigned, std::string> to_unsigned(std::string_view text, std::str
     return value;
 }
 
+std::expected<LowLevel, std::string> parse_low_level(std::string_view value) {
+    if (const auto l = low_level_from(value)) {
+        return *l;
+    }
+    return std::unexpected(
+        std::format("unknown low-level protocol '{}' (lis01-a2, none, mllp)", value));
+}
+
 std::expected<Endpoint, std::string> parse_tcp(std::string_view rest, bool listen) {
+    const auto query_at = rest.find('?');
+    auto low_level = LowLevel::lis01_a2;
+    if (query_at != std::string_view::npos) {
+        for (auto part : rest.substr(query_at + 1) | std::views::split('&')) {
+            const std::string_view kv(part.begin(), part.end());
+            if (!kv.starts_with("low-level=")) {
+                return std::unexpected(std::format("unknown TCP option '{}'", kv));
+            }
+            const auto l = parse_low_level(kv.substr(10));
+            if (!l) {
+                return std::unexpected(l.error());
+            }
+            low_level = *l;
+        }
+        rest = rest.substr(0, query_at);
+    }
     const auto colon = rest.rfind(':');
     if (colon == std::string_view::npos) {
         return std::unexpected(std::format("missing port in '{}'", rest));
@@ -48,8 +72,10 @@ std::expected<Endpoint, std::string> parse_tcp(std::string_view rest, bool liste
     if (*port > 65535) {
         return std::unexpected("port out of range");
     }
-    return Tcp{
-        .host = std::string{host}, .port = static_cast<std::uint16_t>(*port), .listen = listen};
+    return Tcp{.host = std::string{host},
+               .port = static_cast<std::uint16_t>(*port),
+               .listen = listen,
+               .low_level = low_level};
 }
 
 std::expected<Endpoint, std::string> parse_serial(std::string_view rest) {
@@ -111,11 +137,24 @@ std::expected<Endpoint, std::string> parse_serial(std::string_view rest) {
             } else {
                 return std::unexpected(std::format("unknown flow control '{}'", value));
             }
+        } else if (key == "low-level") {
+            const auto l = parse_low_level(value);
+            if (!l) {
+                return std::unexpected(l.error());
+            }
+            s.low_level = *l;
         } else {
             return std::unexpected(std::format("unknown serial option '{}'", key));
         }
     }
     return s;
+}
+
+std::string low_level_suffix(LowLevel l, char separator) {
+    if (l == LowLevel::lis01_a2) {
+        return "";
+    }
+    return std::format("{}low-level={}", separator, to_string(l));
 }
 
 }  // namespace
@@ -142,20 +181,29 @@ std::string to_string(const Endpoint& endpoint) {
     return std::visit(
         overloaded{
             [](const Tcp& t) {
-                return std::format("{}://{}:{}", t.listen ? "tcp-listen" : "tcp", t.host, t.port);
+                return std::format("{}://{}:{}{}", t.listen ? "tcp-listen" : "tcp", t.host, t.port,
+                                   low_level_suffix(t.low_level, '?'));
             },
             [](const Serial& s) {
                 constexpr std::array parity{"none", "odd", "even"};
                 constexpr std::array stop{"1", "1.5", "2"};
                 constexpr std::array flow{"none", "xonxoff", "rtscts"};
-                return std::format("serial:{}?baud={}&data={}&parity={}&stop={}&flow={}", s.device,
-                                   s.baud, s.data_bits,
-                                   parity.at(static_cast<std::size_t>(s.parity)),
-                                   stop.at(static_cast<std::size_t>(s.stop_bits)),
-                                   flow.at(static_cast<std::size_t>(s.flow)));
+                return std::format(
+                    "serial:{}?baud={}&data={}&parity={}&stop={}&flow={}{}", s.device, s.baud,
+                    s.data_bits, parity.at(static_cast<std::size_t>(s.parity)),
+                    stop.at(static_cast<std::size_t>(s.stop_bits)),
+                    flow.at(static_cast<std::size_t>(s.flow)), low_level_suffix(s.low_level, '&'));
             },
         },
         endpoint);
+}
+
+LowLevel low_level_of(const Endpoint& endpoint) noexcept {
+    // get_if, not visit: visit may throw bad_variant_access.
+    if (const auto* t = std::get_if<Tcp>(&endpoint)) {
+        return t->low_level;
+    }
+    return std::get_if<Serial>(&endpoint)->low_level;
 }
 
 }  // namespace lisbench::io

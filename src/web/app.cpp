@@ -184,6 +184,13 @@ struct App::State {
             throw std::invalid_argument("labels needs two names");
         }
         o.labels = {labels[0], labels[1]};
+        // A capture file does not say how it was carried; the live monitor
+        // takes it from the endpoints instead.
+        const auto low_level = low_level_from(field<std::string>(body, "low_level", "lis01-a2"));
+        if (!low_level) {
+            throw std::invalid_argument("low_level is lis01-a2, none or mllp");
+        }
+        o.low_level = {*low_level, *low_level};
         for (const auto& w : field<std::vector<std::string>>(body, "watches", {})) {
             if (w.empty()) {
                 continue;
@@ -218,6 +225,12 @@ struct App::State {
             return error(400, !a ? a.error() : b.error());
         }
         auto o = monitor_options(body);
+        o.low_level = {io::low_level_of(*a), io::low_level_of(*b)};
+        if (o.low_level[0] != o.low_level[1]) {
+            return error(400,
+                         "A and B use different low-level protocols; a monitor passes "
+                         "bytes on unchanged");
+        }
         std::optional<fs::path> save;
         if (const auto name = field<std::string>(body, "save", ""); !name.empty()) {
             save = data_file(name.ends_with(".jsonl") ? name : name + ".jsonl", {".jsonl"});
@@ -366,6 +379,9 @@ struct App::State {
         const auto endpoint = io::parse_endpoint(field<std::string>(body, "endpoint", ""));
         if (!endpoint) {
             return error(400, endpoint.error());
+        }
+        if (io::low_level_of(*endpoint) != LowLevel::lis01_a2) {
+            return error(400, "the conformance test checks LIS01-A2 rules: drop low-level=");
         }
         conform::Options o{
             .iut = iut == "instrument" ? conform::Iut::instrument : conform::Iut::computer,
@@ -727,6 +743,9 @@ struct App::State {
             }
             if (r.query.contains("profile")) {
                 body["profile"] = r.query.at("profile");
+            }
+            if (r.query.contains("low_level")) {
+                body["low_level"] = r.query.at("low_level");
             }
             return json_response(
                 capture(r.query.contains("name") ? r.query.at("name") : "", body).dump());

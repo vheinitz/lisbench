@@ -1,6 +1,7 @@
 #pragma once
 
-// Runs a lis01::Link over a real byte stream (TCP socket or serial port).
+// Runs a link over a real byte stream (TCP socket or serial port): a
+// lis01::Link, or an UnframedLink for a link without LIS01-A2.
 //
 // Everything happens on one executor: the session must be used from the
 // io_context thread it was created on. run() returns when the connection is
@@ -22,6 +23,7 @@
 #include "lisbench/io/endpoint.hpp"
 #include "lisbench/io/faults.hpp"
 #include "lisbench/lis01_link.hpp"
+#include "lisbench/unframed.hpp"
 
 namespace lisbench::io {
 
@@ -56,8 +58,12 @@ struct SessionHandlers {
 struct SessionOptions {
     lis01::Role role{lis01::Role::instrument};
     lis01::Timing timing{};
-    std::vector<Fault> faults{};
+    std::vector<Fault> faults{};  // LIS01-A2 only
+    LowLevel low_level{LowLevel::lis01_a2};
 };
+
+// Fault injection works on LIS01-A2 frames and handshake bytes.
+[[nodiscard]] std::expected<void, std::string> check(const SessionOptions& options);
 
 class Session {
 public:
@@ -88,8 +94,13 @@ private:
     void notify();
     void close_stream();
 
+    template <typename F>
+    decltype(auto) with_link(F&& f) {
+        return std::visit(std::forward<F>(f), link_);
+    }
+
     Stream stream_;
-    lis01::Link link_;
+    std::variant<lis01::Link, UnframedLink> link_;
     FaultFilter faults_{};
     SessionHandlers handlers_{};
 

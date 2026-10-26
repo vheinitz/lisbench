@@ -176,6 +176,27 @@ int cmd_monitor(const MonitorFlags& flags) {
         options.watches.push_back(t.watch);
     }
     Triggers actions{std::move(triggers), first_trigger_watch, options.labels};
+    if (flags.replay.empty()) {
+        // Wrong URIs are reported below, where they are opened.
+        const auto a = io::parse_endpoint(flags.a);
+        const auto b = io::parse_endpoint(flags.b);
+        if (a && b) {
+            options.low_level = {io::low_level_of(*a), io::low_level_of(*b)};
+            if (options.low_level[0] != options.low_level[1]) {
+                // The monitor passes bytes on as they are; converting needs a gateway.
+                println(stderr, "monitor: A and B use different low-level protocols ({} and {})",
+                        to_string(options.low_level[0]), to_string(options.low_level[1]));
+                return 2;
+            }
+        }
+    } else {
+        const auto l = low_level_from(flags.low_level);
+        if (!l) {
+            println(stderr, "monitor: --low-level is lis01-a2, none or mllp");
+            return 2;
+        }
+        options.low_level = {*l, *l};
+    }
     const monitor::FormatOptions format{.verbose = flags.verbose, .decode = flags.decode};
     monitor::Monitor mon{options};
     const auto handle = [&](const std::vector<monitor::Event>& events) {

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Links without LIS01-A2: every link chooses its low-level protocol,
+  `lis01-a2` (default), `none` (records with CR, the message ends with its
+  L record) or `mllp` (HL7 MLLP block VT ... FS CR). In session files as
+  `low_level`, in the web UI's link form, in URIs as `?low-level=` for
+  `sim`, `monitor`, `bridge` and `map`; `monitor --replay --low-level` and a
+  choice in the capture view for recorded traffic. Fault injection and
+  `conform` stay LIS01-A2 only and say so.
 - Web UI: serial port fields are editable comboboxes: free text, a list of
   the ports found on the computer running lisbench, and a button that asks
   for them again (updates every port field on the page).

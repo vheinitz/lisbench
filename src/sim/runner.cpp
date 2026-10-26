@@ -124,6 +124,14 @@ bool has_query(const io::Transfer& t) {
 asio::awaitable<Report> run(Scenario scenario, Observers observers,
                             asio::ip::tcp::acceptor* acceptor) {
     Report report;
+    const io::SessionOptions options{.role = scenario.role,
+                                     .timing = scenario.timing,
+                                     .faults = scenario.faults,
+                                     .low_level = io::low_level_of(scenario.endpoint)};
+    if (const auto ok = io::check(options); !ok) {
+        add(report, observers, StepReport{.index = 0, .ok = false, .text = ok.error()});
+        co_return report;
+    }
     const auto executor = co_await asio::this_coro::executor;
     const auto* tcp = std::get_if<io::Tcp>(&scenario.endpoint);
     const bool listening = tcp != nullptr && tcp->listen;
@@ -172,11 +180,7 @@ asio::awaitable<Report> run(Scenario scenario, Observers observers,
                 }
             };
         }
-        io::Session session{
-            std::move(*stream),
-            io::SessionOptions{
-                .role = scenario.role, .timing = scenario.timing, .faults = scenario.faults},
-            std::move(handlers)};
+        io::Session session{std::move(*stream), options, std::move(handlers)};
         current = &session;
         using namespace asio::experimental::awaitable_operators;
         co_await (session.run() && run_steps(session, scenario, report, observers));

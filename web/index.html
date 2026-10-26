@@ -54,8 +54,8 @@
 </nav>
 <section id="view-monitor" class="tool-view">
   <form id="monitor-form" class="panel">
-    <label>Side A <input name="a" required placeholder="tcp-listen://:15000 or serial:/dev/ttyUSB0?baud=9600"></label>
-    <label>Side B <input name="b" required placeholder="tcp://lis-host:5000"></label>
+    <label>Side A <input name="a" required placeholder="tcp-listen://:15000 or serial:/dev/ttyUSB0?baud=9600" title="Without LIS01-A2: append ?low-level=none or ?low-level=mllp (serial: &amp;low-level=...)"></label>
+    <label>Side B <input name="b" required placeholder="tcp://lis-host:5000" title="Without LIS01-A2: append ?low-level=none or ?low-level=mllp"></label>
     <label>Labels <input name="labels" value="instrument,lis"></label>
     <label>Profile <input name="profile" placeholder="e.g. cepheid-genexpert"></label>
     <label class="wide">Watches, one per line <textarea name="watches" rows="2" placeholder="R.value > 100"></textarea></label>
@@ -81,6 +81,8 @@
     <div class="toolbar">
       <label>Watch <input id="capture-watch" placeholder="R.value > 100"></label>
       <label>Profile <input id="capture-profile" placeholder="optional"></label>
+      <label>Low-level protocol
+        <select id="capture-low-level"><option value="lis01-a2">LIS01-A2</option><option value="none">none</option><option value="mllp">MLLP</option></select></label>
       <button type="button" id="captures-refresh">Refresh</button>
     </div>
     <ul id="capture-list" class="files"></ul>
@@ -117,7 +119,7 @@
     <label>Role
       <select name="role"><option value="computer">LIS (computer system)</option><option value="instrument">Instrument</option></select>
     </label>
-    <label>Endpoint <input name="endpoint" placeholder="tcp-listen://:15000"></label>
+    <label>Endpoint <input name="endpoint" placeholder="tcp-listen://:15000" title="Without LIS01-A2: append ?low-level=none or ?low-level=mllp"></label>
     <label>Send <select name="send" multiple size="3"></select></label>
     <label>Answer queries with <select name="answer"><option value="">(none)</option></select></label>
     <label class="wide">Faults, one per line <textarea name="faults" rows="2" placeholder="ack:2:nak"></textarea></label>

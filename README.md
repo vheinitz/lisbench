@@ -123,6 +123,9 @@ lisbench map MAPPING.yaml --db DB   messages from a database (--each, --arg, --t
 
 Endpoints: `tcp://host:port`, `tcp-listen://:port`,
 `serial:/dev/ttyUSB0?baud=9600&data=8&parity=none&stop=1` (`serial:COM3?...` on Windows).
+The low-level protocol is LIS01-A2 unless the URI says otherwise:
+`tcp://host:port?low-level=none` (records with CR, the message ends with L) or
+`?low-level=mllp` (HL7 MLLP block); serial ports take `&low-level=...`.
 
 `decode` and `validate` take `--charset latin1|utf8`, `--non-ascii
 ascii-hex|raw|transliterate` and `--strict`. Example:

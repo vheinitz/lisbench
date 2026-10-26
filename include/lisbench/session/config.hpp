@@ -28,7 +28,8 @@ enum class Transport : std::uint8_t { serial, tcp_server, tcp_client };
 struct LinkConfig {
     std::string role{"main"};  // main, or orders / results (LIS with two ports)
     Transport transport{Transport::tcp_server};
-    io::Serial serial{};
+    LowLevel low_level{LowLevel::lis01_a2};
+    io::Serial serial{};          // its low_level is not used: see above
     std::string host{"0.0.0.0"};  // tcp-server: address to listen on; tcp-client: partner
     std::uint16_t port{15000};
 
@@ -36,6 +37,9 @@ struct LinkConfig {
     // For the UI: "serial /dev/ttyUSB0 9600 8N1", "waits on port 15000", ...
     [[nodiscard]] std::string label() const;
     friend bool operator==(const LinkConfig&, const LinkConfig&) = default;
+
+private:
+    [[nodiscard]] std::string transport_label() const;
 };
 
 enum class Unsolicited : std::uint8_t { accept, flag, ignore };

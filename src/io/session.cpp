@@ -4,6 +4,8 @@
 
 #include <array>
 #include <chrono>
+#include <format>
+#include <stdexcept>
 #include <utility>
 
 namespace lisbench::io {
@@ -49,16 +51,35 @@ asio::serial_port::flow_control::type to_asio(FlowControl f) {
     return asio::serial_port::flow_control::none;
 }
 
+std::variant<lis01::Link, UnframedLink> make_link(const SessionOptions& o) {
+    if (o.low_level == LowLevel::lis01_a2) {
+        return lis01::Link{o.role, o.timing};
+    }
+    return UnframedLink{o.low_level, o.timing};
+}
+
 }  // namespace
+
+std::expected<void, std::string> check(const SessionOptions& options) {
+    if (!options.faults.empty() && options.low_level != LowLevel::lis01_a2) {
+        return std::unexpected(
+            std::format("fault injection needs the LIS01-A2 low-level protocol, not '{}'",
+                        to_string(options.low_level)));
+    }
+    return {};
+}
 
 Session::Session(Stream stream, SessionOptions options, SessionHandlers handlers)
     : stream_{std::move(stream)},
-      link_{options.role, options.timing},
+      link_{make_link(options)},
       faults_{std::move(options.faults)},
       handlers_{std::move(handlers)},
       link_timer_{std::visit([](auto& s) { return s.get_executor(); }, stream_)},
       write_wake_{link_timer_.get_executor()},
       wake_{link_timer_.get_executor()} {
+    if (const auto ok = check(options); !ok) {
+        throw std::invalid_argument(ok.error());
+    }
     park(link_timer_);
     park(write_wake_);
     park(wake_);
@@ -68,7 +89,7 @@ asio::awaitable<void> Session::run() {
     co_await (read_loop() && write_loop() && timer_loop());
     // Whatever is still queued gets its result now.
     lis01::Events ev;
-    link_.cancel_all(ev);
+    with_link([&ev](auto& l) { l.cancel_all(ev); });
     dispatch(ev);
     notify();
 }
@@ -91,9 +112,9 @@ void Session::stop() {
 
 lis01::MessageId Session::submit(const lis01::Message& message) {
     lis01::Events ev;
-    const auto id = link_.submit(message, ev);
+    const auto id = with_link([&](auto& l) { return l.submit(message, ev); });
     if (closing_) {
-        link_.cancel(id, ev);
+        with_link([&](auto& l) { l.cancel(id, ev); });
     }
     dispatch(ev);
     return id;
@@ -137,12 +158,12 @@ asio::awaitable<void> Session::read_loop() {
                                         .fault = std::nullopt});
         }
         lis01::Events ev;
-        link_.on_bytes(data, ev);
+        with_link([&](auto& l) { l.on_bytes(data, ev); });
         dispatch(ev);
     }
     closing_ = true;
     lis01::Events ev;
-    link_.on_disconnect(ev);
+    with_link([&ev](auto& l) { l.on_disconnect(ev); });
     dispatch(ev);
     write_wake_.cancel();
     link_timer_.cancel();
@@ -195,7 +216,7 @@ asio::awaitable<void> Session::timer_loop() {
         const auto id = std::exchange(armed_, 0);
         park(link_timer_);
         lis01::Events ev;
-        link_.on_timer(id, ev);
+        with_link([&](auto& l) { l.on_timer(id, ev); });
         dispatch(ev);
     }
 }

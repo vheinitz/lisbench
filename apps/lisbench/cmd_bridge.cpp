@@ -136,6 +136,12 @@ int cmd_bridge(const BridgeFlags& flags) {
         println(stderr, "bridge: {}", !a ? a.error() : b.error());
         return 2;
     }
+    if (io::low_level_of(*a) != io::low_level_of(*b)) {
+        // A bridge passes bytes on as they are; converting needs a gateway.
+        println(stderr, "bridge: A and B use different low-level protocols ({} and {})",
+                to_string(io::low_level_of(*a)), to_string(io::low_level_of(*b)));
+        return 2;
+    }
     std::optional<std::ofstream> save;
     if (!flags.save.empty()) {
         save.emplace(flags.save, std::ios::app);

@@ -9,11 +9,14 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "lisbench/io/relay.hpp"
 #include "lisbench/lis01_decoder.hpp"
 #include "lisbench/lis02_message.hpp"
+#include "lisbench/unframed.hpp"
 #include "lisbench/watch.hpp"
 
 namespace lisbench::monitor {
@@ -28,6 +31,9 @@ struct Options {
     std::vector<watch::Expression> watches{};
     milliseconds slow_reply{15'000};  // LIS01-A2 sender timeout
     std::size_t max_text{lis01::max_text_size};
+    // Per side: how the messages are carried. A monitor passes bytes on
+    // unchanged, so both sides normally use the same.
+    std::array<LowLevel, 2> low_level{LowLevel::lis01_a2, LowLevel::lis01_a2};
 };
 
 enum class Kind : std::uint8_t {
@@ -81,7 +87,7 @@ public:
 
 private:
     struct SideState {
-        lis01::StreamDecoder decoder;
+        std::variant<lis01::StreamDecoder, UnframedDecoder> decoder;
         lis02::Delimiters delimiters{};
         std::size_t records_in_transfer{0};
         bool saw_terminator{false};
@@ -90,8 +96,30 @@ private:
     };
 
     static constexpr std::size_t index(Side s) noexcept { return s == Side::a ? 0 : 1; }
+    // Runs step(decoder, events) on this side's decoder and handles the events.
+    template <typename Step>
+    void run_decoder(Side from, Clock::time_point at, std::vector<Event>& out, Step step) {
+        std::visit(
+            [&](auto& d) {
+                if constexpr (std::is_same_v<std::decay_t<decltype(d)>, UnframedDecoder>) {
+                    std::vector<UnframedEvent> decoded;
+                    step(d, decoded);
+                    for (auto& e : decoded) {
+                        on_unframed(from, at, e, out);
+                    }
+                } else {
+                    std::vector<lis01::DecoderEvent> decoded;
+                    step(d, decoded);
+                    for (auto& e : decoded) {
+                        on_decoded(from, at, e, out);
+                    }
+                }
+            },
+            sides_.at(index(from)).decoder);
+    }
     void on_decoded(Side from, Clock::time_point at, lis01::DecoderEvent& e,
                     std::vector<Event>& out);
+    void on_unframed(Side from, Clock::time_point at, UnframedEvent& e, std::vector<Event>& out);
     void on_record(Side from, Clock::time_point at, bytes text, std::vector<Event>& out);
     void reply_from(Side from, Clock::time_point at, std::vector<Event>& out);
 

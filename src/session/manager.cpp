@@ -303,7 +303,9 @@ public:
             const auto role =
                 config_.type == SessionType::lis ? lis01::Role::computer : lis01::Role::instrument;
             links_.push_back(std::make_unique<LinkRunner>(
-                m_executor(), l, io::SessionOptions{.role = role, .timing = timing, .faults = {}},
+                m_executor(), l,
+                io::SessionOptions{
+                    .role = role, .timing = timing, .faults = {}, .low_level = l.low_level},
                 [this] { publish_status(); }));
         }
         wake_.expires_at(asio::steady_timer::time_point::max());

@@ -51,6 +51,7 @@ add_library(lisbench_core
   src/lis02_records.cpp
   src/printable.cpp
   src/watch.cpp
+  src/unframed.cpp
 )
 add_library(lisbench::core ALIAS lisbench_core)
 target_include_directories(lisbench_core PUBLIC include)

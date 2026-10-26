@@ -143,6 +143,28 @@ lis: {unsolicited: ignore, no_order_reply: empty}
     CHECK_FALSE(valid_session_name("a/b"));
 }
 
+TEST_CASE("session file: a link without LIS01-A2") {
+    const auto c = parse_session(R"(
+lisbench: session/1
+name: lis-mllp
+type: lis
+links:
+  - {role: orders, transport: tcp-server, low_level: mllp, tcp: {port: 15000}}
+  - {role: results, transport: serial, low_level: none, serial: {port: /dev/ttyUSB0}}
+)");
+    REQUIRE(c);
+    CHECK(c->links.at(0).low_level == LowLevel::mllp);
+    CHECK(c->links.at(0).label() == "waits on port 15000 (0.0.0.0), MLLP");
+    CHECK(io::low_level_of(c->links.at(0).endpoint()) == LowLevel::mllp);
+    CHECK(io::low_level_of(c->links.at(1).endpoint()) == LowLevel::none);
+    CHECK(config_json(*c)["links"][0]["low_level"] == "mllp");
+    CHECK(parse_session(to_yaml(*c)).value() == *c);
+    CHECK(parse_session(config_json(*c).dump()).value() == *c);
+    CHECK_FALSE(
+        parse_session("lisbench: session/1\nname: x\ntype: lis\nlinks: [{transport: "
+                      "tcp-server, low_level: hl7, tcp: {port: 1}}]\n"));
+}
+
 TEST_CASE("order book: host query through to final, item states follow the messages") {
     OrderBook b;
     REQUIRE(b.add_specimen({.id = "S-1", .patient_id = "P-9", .patient_name = "Doe^Jane"}));

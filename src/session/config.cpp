@@ -38,9 +38,12 @@ std::string duration_text(milliseconds d) {
 
 LinkConfig link_of(const YAML::Node& n) {
     // label: written for the UI (config_json), derived, ignored when read back.
-    only_keys(n, "a link", {"role", "transport", "serial", "tcp", "label"});
+    only_keys(n, "a link", {"role", "transport", "low_level", "serial", "tcp", "label"});
     LinkConfig l;
     l.role = get<std::string>(n, "role", "main");
+    l.low_level = choice(
+        n, "low_level", LowLevel::lis01_a2,
+        {{"lis01-a2", LowLevel::lis01_a2}, {"none", LowLevel::none}, {"mllp", LowLevel::mllp}});
     l.transport = choice(n, "transport", Transport::tcp_server,
                          {{"serial", Transport::serial},
                           {"tcp-server", Transport::tcp_server},
@@ -156,12 +159,29 @@ std::string_view to_string(Transport t) noexcept {
 
 io::Endpoint LinkConfig::endpoint() const {
     if (transport == Transport::serial) {
-        return serial;
+        auto s = serial;
+        s.low_level = low_level;
+        return s;
     }
-    return io::Tcp{.host = host, .port = port, .listen = transport == Transport::tcp_server};
+    return io::Tcp{.host = host,
+                   .port = port,
+                   .listen = transport == Transport::tcp_server,
+                   .low_level = low_level};
 }
 
 std::string LinkConfig::label() const {
+    const auto carried = [this]() -> std::string_view {
+        switch (low_level) {
+            case LowLevel::lis01_a2: return "";
+            case LowLevel::none: return ", without LIS01-A2";
+            case LowLevel::mllp: return ", MLLP";
+        }
+        return "";
+    }();
+    return std::format("{}{}", transport_label(), carried);
+}
+
+std::string LinkConfig::transport_label() const {
     switch (transport) {
         case Transport::serial: {
             return std::format("serial {} {} {}{}{}", serial.device, serial.baud, serial.data_bits,
@@ -299,6 +319,7 @@ std::string to_yaml(const SessionConfig& c) {
         out << YAML::BeginMap;
         out << YAML::Key << "role" << YAML::Value << l.role;
         out << YAML::Key << "transport" << YAML::Value << std::string{to_string(l.transport)};
+        out << YAML::Key << "low_level" << YAML::Value << std::string{to_string(l.low_level)};
         if (l.transport == Transport::serial) {
             const auto& s = l.serial;
             out << YAML::Key << "serial" << YAML::Value << YAML::Flow << YAML::BeginMap;
@@ -356,7 +377,9 @@ nlohmann::json config_json(const SessionConfig& c) {
     using nlohmann::json;
     json links = json::array();
     for (const auto& l : c.links) {
-        json link = {{"role", l.role}, {"transport", to_string(l.transport)}};
+        json link = {{"role", l.role},
+                     {"transport", to_string(l.transport)},
+                     {"low_level", to_string(l.low_level)}};
         if (l.transport == Transport::serial) {
             const auto stop = stop_text(l.serial.stop_bits);
             link["serial"] = {

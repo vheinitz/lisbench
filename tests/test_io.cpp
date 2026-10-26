@@ -37,6 +37,24 @@ TEST_CASE("endpoints are parsed from URIs") {
     }
 }
 
+TEST_CASE("endpoints: the low-level protocol is part of the URI") {
+    const auto t = parse_endpoint("tcp://h:5000?low-level=mllp").value();
+    CHECK(low_level_of(t) == LowLevel::mllp);
+    CHECK(to_string(t) == "tcp://h:5000?low-level=mllp");
+    CHECK(low_level_of(parse_endpoint("tcp-listen://:5000?low-level=none").value()) ==
+          LowLevel::none);
+    const auto s = parse_endpoint("serial:/dev/ttyS0?baud=9600&low-level=none").value();
+    CHECK(low_level_of(s) == LowLevel::none);
+    CHECK(to_string(s).ends_with("&flow=none&low-level=none"));
+    CHECK(low_level_of(parse_endpoint("tcp://h:1").value()) == LowLevel::lis01_a2);
+    CHECK(to_string(parse_endpoint("tcp://h:1?low-level=lis01-a2").value()) == "tcp://h:1");
+    for (const auto* bad :
+         {"tcp://h:1?low-level=hl7", "tcp://h:1?baud=9600", "serial:/dev/x?low-level=raw"}) {
+        INFO(bad);
+        CHECK_FALSE(parse_endpoint(bad));
+    }
+}
+
 TEST_CASE("fault filter: selection by occurrence") {
     FaultFilter f{{Fault{.target = FaultTarget::ack, .action = FaultAction::nak, .nth = 2},
                    Fault{.target = FaultTarget::enq, .action = FaultAction::drop, .every = 2}}};

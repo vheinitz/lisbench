@@ -230,6 +230,7 @@ async function openCapture(name) {
   const profile = $("#capture-profile", HTMLInputElement).value.trim();
   if (watch) params.set("watch", watch);
   if (profile) params.set("profile", profile);
+  params.set("low_level", $("#capture-low-level", HTMLSelectElement).value);
   try {
     const c = await api(`/api/capture?${params}`);
     $("#capture-title", HTMLHeadingElement).textContent =

@@ -47,31 +47,78 @@ std::string_view to_string(Kind k) noexcept {
     return "unknown";
 }
 
+namespace {
+
+std::variant<lis01::StreamDecoder, UnframedDecoder> decoder_for(LowLevel l, std::size_t max_text) {
+    if (l == LowLevel::lis01_a2) {
+        return lis01::StreamDecoder{max_text};
+    }
+    return UnframedDecoder{l};
+}
+
+}  // namespace
+
 Monitor::Monitor(Options options)
     : options_{std::move(options)},
-      sides_{SideState{.decoder = lis01::StreamDecoder{options_.max_text}},
-             SideState{.decoder = lis01::StreamDecoder{options_.max_text}}} {}
+      sides_{SideState{.decoder = decoder_for(options_.low_level[0], options_.max_text)},
+             SideState{.decoder = decoder_for(options_.low_level[1], options_.max_text)}} {}
 
 std::vector<Event> Monitor::feed(Side from, Clock::time_point at, bytes_view data) {
-    std::vector<lis01::DecoderEvent> decoded;
-    sides_.at(index(from)).decoder.feed(data, decoded);
     std::vector<Event> out;
-    for (auto& e : decoded) {
-        on_decoded(from, at, e, out);
-    }
+    run_decoder(from, at, out, [&data](auto& d, auto& decoded) { d.feed(data, decoded); });
     return out;
 }
 
 std::vector<Event> Monitor::finish(Clock::time_point at) {
     std::vector<Event> out;
     for (const auto s : {Side::a, Side::b}) {
-        std::vector<lis01::DecoderEvent> decoded;
-        sides_.at(index(s)).decoder.finish(decoded);
-        for (auto& e : decoded) {
-            on_decoded(s, at, e, out);
-        }
+        run_decoder(s, at, out, [](auto& d, auto& decoded) { d.finish(decoded); });
     }
     return out;
+}
+
+void Monitor::on_unframed(Side from, Clock::time_point at, UnframedEvent& e,
+                          std::vector<Event>& out) {
+    auto& side = sides_.at(index(from));
+    auto& st = stats_.at(index(from));
+    std::visit(
+        overloaded{
+            [&](unframed::Record& r) {
+                if (side.records_in_transfer == 0) {
+                    side.saw_terminator = false;
+                }
+                on_record(from, at, std::move(r.text), out);
+            },
+            [&](const unframed::MessageEnd& m) {
+                ++st.transfers;
+                const bool whole = m.complete && side.saw_terminator;
+                if (!whole) {
+                    ++st.incomplete_transfers;
+                }
+                auto text = std::format("{} records, {}", side.records_in_transfer,
+                                        whole ? "ends with L" : "INCOMPLETE");
+                if (!m.reason.empty()) {
+                    text += std::format(": {}", m.reason);
+                } else if (!side.saw_terminator) {
+                    text += ": no L record";
+                }
+                out.push_back(
+                    Event{.at = at, .from = from, .kind = Kind::transfer, .text = std::move(text)});
+                side.records_in_transfer = 0;
+            },
+            [&](unframed::Noise& n) {
+                out.push_back(Event{.at = at,
+                                    .from = from,
+                                    .kind = Kind::noise,
+                                    .text = describe_noise(n.data),
+                                    .raw = std::move(n.data)});
+            },
+            [&](const unframed::Problem& p) {
+                ++st.problems;
+                out.push_back(Event{.at = at, .from = from, .kind = Kind::problem, .text = p.text});
+            },
+        },
+        e);
 }
 
 void Monitor::reply_from(Side from, Clock::time_point at, std::vector<Event>& out) {

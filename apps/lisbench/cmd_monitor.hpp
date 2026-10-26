@@ -22,6 +22,7 @@ struct MonitorFlags {
     bool decode{false};
     bool verbose{false};
     long slow_reply_ms{15'000};
+    std::string low_level{"lis01-a2"};  // --replay only; live: from the endpoints
     TextFlags text;
 };
 

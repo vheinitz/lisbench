@@ -164,3 +164,29 @@ TEST_CASE("replay through capture lines gives the same output as the live feed")
     CHECK(a.size() > 10);
     CHECK(a == b);
 }
+
+TEST_CASE("monitor: messages without LIS01-A2, per side none or MLLP") {
+    Options o;
+    o.low_level = {LowLevel::none, LowLevel::mllp};
+    o.watches.push_back(watch::parse("R.value > 100").value());
+    Monitor m{o};
+    const auto t0 = Clock::time_point{} + 1000h;
+    auto ev = m.feed(Side::a, t0, to_bytes("H|\\^&\rP|1\rO|1|S-1\rR|1|^^^GLU|120\rL|1|N\r"));
+    CHECK(count(ev, Kind::record) == 5);
+    CHECK(count(ev, Kind::watch) == 1);
+    REQUIRE(count(ev, Kind::transfer) == 1);
+    CHECK(ev.back().text == "5 records, ends with L");
+
+    ev = m.feed(Side::b, t0 + 1s, to_bytes("\x0bH|\\^&\rL|1|N\r\x1c\r"));
+    CHECK(count(ev, Kind::record) == 2);
+    REQUIRE(count(ev, Kind::transfer) == 1);
+    CHECK(ev.back().text == "2 records, ends with L");
+
+    ev = m.feed(Side::a, t0 + 2s, to_bytes("H|\\^&\rP|1\r"));
+    const auto rest = m.finish(t0 + 3s);
+    REQUIRE(count(rest, Kind::transfer) == 1);
+    CHECK(rest.back().text.starts_with("2 records, INCOMPLETE"));
+    CHECK(m.stats(Side::a).transfers == 2);
+    CHECK(m.stats(Side::a).incomplete_transfers == 1);
+    CHECK(m.stats(Side::b).transfers == 1);
+}

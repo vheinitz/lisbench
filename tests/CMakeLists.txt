@@ -1,6 +1,7 @@
 add_executable(lisbench_tests
   test_lis01_frame.cpp
   test_lis01_link.cpp
+  test_unframed.cpp
   test_lis02_codec.cpp
   test_lis02_message.cpp
   test_corpus.cpp

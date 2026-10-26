@@ -43,9 +43,12 @@ using cli::clock_now;
 
 // --trace: a serial port delivers a frame a few bytes at a time. Received
 // bytes are collected into one line per frame (STX .. LF) or control
-// character, stamped with the time of the first byte.
+// character, stamped with the time of the first byte. Without LIS01-A2:
+// one line per record (.. CR).
 class TraceLines {
 public:
+    explicit TraceLines(LowLevel low_level) : low_level_{low_level} {}
+
     void on_wire(const io::WireEvent& w) {
         if (w.direction == io::Direction::out) {
             flush();
@@ -57,7 +60,10 @@ public:
                 first_ = w.at;
             }
             pending_.push_back(b);
-            if (pending_.front() != lis01::ctl::stx || b == lis01::ctl::lf) {
+            const bool line_end = low_level_ == LowLevel::lis01_a2
+                                      ? pending_.front() != lis01::ctl::stx || b == lis01::ctl::lf
+                                      : b == lis01::ctl::cr;
+            if (line_end) {
                 flush();
             }
         }
@@ -79,6 +85,7 @@ private:
                            : "");
     }
 
+    LowLevel low_level_;
     bytes pending_{};
     std::chrono::system_clock::time_point first_{};
 };
@@ -333,7 +340,7 @@ int cmd_sim(const SimFlags& flags) {
         println("{} [sim] fast test timing: not LIS01-A2, only for devices built for it",
                 clock_now());
     }
-    auto trace = std::make_shared<TraceLines>();
+    auto trace = std::make_shared<TraceLines>(io::low_level_of(scenario.endpoint));
     sim::Observers obs;
     obs.on_info = [](const std::string& text) { println("{} [sim] {}", clock_now(), text); };
     obs.on_step = [](const sim::StepReport& r) {
@@ -465,6 +472,10 @@ int run(int argc, char** argv) {
     monitor->add_flag("--decode", mon.decode, "Show every record field by field");
     monitor->add_flag("--verbose", mon.verbose, "Also show ENQ/ACK/EOT and every frame");
     monitor->add_option("--slow-reply", mon.slow_reply_ms, "Report replies slower than this (ms)")
+        ->capture_default_str();
+    monitor
+        ->add_option("--low-level", mon.low_level,
+                     "With --replay: lis01-a2, none or mllp (live: low-level= of the endpoints)")
         ->capture_default_str();
     mon.text.add_to(*monitor);
 
