@@ -243,7 +243,7 @@ session keeps the last 5000 events in memory and can also save a capture.
 ```yaml
 lisbench: session/1
 name: bench-uno                 # unique, plain file name characters
-type: device                    # lis | device | monitor | export | conform
+type: device                    # lis | device | gateway (9.10) | monitor | export | conform
 profile: cepheid-genexpert      # optional instrument profile
 timing: lis01-a2                # lis01-a2 | fast-test
 links:

@@ -3,12 +3,14 @@
 #include <asio/experimental/awaitable_operators.hpp>
 
 #include <algorithm>
+#include <array>
 #include <deque>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <optional>
 #include <set>
+#include <stdexcept>
 
 #include "lisbench/io/session.hpp"
 #include "lisbench/printable.hpp"
@@ -147,6 +149,14 @@ public:
     void on_transfer(OnTransfer f) { on_transfer_ = std::move(f); }
     void on_warning(std::function<void(const std::string&)> f) { on_warning_ = std::move(f); }
     void on_note(std::function<void(const std::string&)> f) { on_note_ = std::move(f); }
+    // Kept across reconnects.
+    void set_receiver_ready(bool ready) {
+        ready_ = ready;
+        if (const auto s = session_) {
+            s->set_receiver_ready(ready);
+        }
+    }
+    [[nodiscard]] LowLevel low_level() const noexcept { return config_.low_level; }
 
     [[nodiscard]] const LinkStatus& status() const noexcept { return status_; }
     [[nodiscard]] bool connected() const noexcept { return session_ != nullptr; }
@@ -175,11 +185,15 @@ public:
                 } else if (config_.transport == Transport::tcp_client) {
                     // A connect to an absent partner may take minutes: raced against stop().
                     set(LinkState::connecting, "");
-                    auto r = co_await (io::connect(endpoint) || until_stopped());
+                    auto r = co_await (try_connect(endpoint) || until_stopped());
                     if (r.index() == 1) {
                         break;
                     }
-                    stream.emplace(std::move(std::get<0>(r)));
+                    auto& connected = std::get<0>(r);
+                    if (!connected) {
+                        throw std::runtime_error(connected.error());
+                    }
+                    stream.emplace(std::move(*connected));
                 } else {
                     // Opening a serial port is quick. Not raced: io::connect drains the port
                     // with an || of its own, and nested inside another || the stop branch
@@ -204,6 +218,7 @@ public:
                     }
                 };
                 session_ = std::make_shared<io::Session>(std::move(*stream), options_, handlers);
+                session_->set_receiver_ready(ready_);
                 set(LinkState::connected, "");
                 const auto keep = session_;  // a sender may still hold it after the close
                 co_await keep->run();
@@ -258,6 +273,17 @@ public:
     }
 
 private:
+    // || waits for the first branch that succeeds: a refused connect that
+    // throws would leave it waiting for stop(). Hence the error as a value.
+    static asio::awaitable<std::expected<io::Stream, std::string>> try_connect(
+        io::Endpoint endpoint) {
+        try {
+            co_return co_await io::connect(std::move(endpoint));
+        } catch (const std::exception& e) {
+            co_return std::unexpected(std::string{e.what()});
+        }
+    }
+
     asio::awaitable<void> until_stopped() {
         if (!stopping_) {
             (void)co_await stop_timer_.async_wait(use_tuple);
@@ -283,6 +309,7 @@ private:
     LinkStatus status_{};
     bool stopping_{false};
     bool done_{false};
+    bool ready_{true};
 };
 
 // --- a running session -----------------------------------------------------------
@@ -300,13 +327,20 @@ public:
         status_.type = config_.type;
         status_.state = RunState::running;
         for (const auto& l : config_.links) {
-            const auto role =
-                config_.type == SessionType::lis ? lis01::Role::computer : lis01::Role::instrument;
+            // A gateway plays the computer system towards the instrument and
+            // the instrument towards the LIS.
+            const bool computer = config_.type == SessionType::gateway
+                                      ? l.role == "instrument"
+                                      : config_.type == SessionType::lis;
+            const auto role = computer ? lis01::Role::computer : lis01::Role::instrument;
             links_.push_back(std::make_unique<LinkRunner>(
                 m_executor(), l,
                 io::SessionOptions{
                     .role = role, .timing = timing, .faults = {}, .low_level = l.low_level},
-                [this] { publish_status(); }));
+                [this] {
+                    links_changed();
+                    publish_status();
+                }));
         }
         wake_.expires_at(asio::steady_timer::time_point::max());
     }
@@ -368,6 +402,8 @@ public:
 
 protected:
     virtual asio::awaitable<void> work() = 0;
+    // A link changed state (waiting, connected, closed).
+    virtual void links_changed() {}
 
     [[nodiscard]] asio::any_io_executor m_executor() const { return executor_; }
 
@@ -662,6 +698,115 @@ private:
     std::deque<io::Transfer> inbox_{};
 };
 
+// --- gateway ------------------------------------------------------------------------
+
+// Forwards whole messages between the instrument side and the LIS side; the
+// records go on unchanged, only the low-level protocol differs. Strict, with
+// nothing stored: while one side is not connected, the other refuses new
+// messages (LIS01-A2: ENQ answered with NAK, so the sender keeps the message
+// and tries again). A side without LIS01-A2 cannot refuse: what arrives then
+// is reported and dropped. A message that came incomplete is not forwarded.
+class GatewayInstance final : public Instance {
+public:
+    GatewayInstance(Manager& m, asio::any_io_executor ex, const SessionConfig& c,
+                    lis02::TextOptions text, lis01::Timing timing)
+        : Instance{m, std::move(ex), c, text, timing} {
+        for (const auto* role : {"instrument", "lis"}) {
+            auto* from = link(role);
+            from->on_transfer([this, from](const io::Transfer& t) { received(*from, t); });
+            from->on_warning(
+                [this, role](const std::string& w) { log(std::format("{} side: {}", role, w)); });
+            from->on_note([this](const std::string& w) { log(w); });
+        }
+        links_changed();
+    }
+
+    [[nodiscard]] json state() const override { return state_json(forwarded_, not_forwarded_); }
+
+    static json state_json(const std::array<std::size_t, 2>& forwarded, std::size_t not_forwarded) {
+        return {{"forwarded", {{"instrument", forwarded[0]}, {"lis", forwarded[1]}}},
+                {"not_forwarded", not_forwarded}};
+    }
+
+protected:
+    asio::awaitable<void> work() override {
+        log(std::format("gateway started: instrument side {}, LIS side {}",
+                        to_string(link("instrument")->low_level()),
+                        to_string(link("lis")->low_level())));
+        while (!stopping_) {
+            co_await wait(std::chrono::hours{1});
+        }
+    }
+
+    void links_changed() override {
+        for (const auto* role : {"instrument", "lis"}) {
+            auto* side = link(role);
+            const auto* other_role = std::string_view{role} == "lis" ? "instrument" : "lis";
+            const bool ready = link(other_role)->connected();
+            side->set_receiver_ready(ready);
+            auto& told = refusing_[std::string_view{role} == "lis" ? 1 : 0];
+            if (ready == !told) {
+                continue;
+            }
+            told = !ready;
+            if (side->low_level() != LowLevel::lis01_a2) {
+                continue;  // cannot refuse; drops are logged per message
+            }
+            log(ready ? std::format("{} side connected: the {} side accepts messages again",
+                                    other_role, role)
+                      : std::format("{} side not connected: the {} side answers ENQ with NAK",
+                                    other_role, role));
+        }
+    }
+
+private:
+    void received(LinkRunner& from, const io::Transfer& t) {
+        const auto& role = from.status().role;
+        const bool up = role == "instrument";
+        auto* to = link(up ? "lis" : "instrument");
+        activity(true);
+        if (t.records.empty()) {
+            return;  // ENQ ... EOT without frames: nothing to forward
+        }
+        const auto direction = std::format("{} -> {}", role, to->status().role);
+        if (!t.complete) {
+            ++not_forwarded_;
+            problem(std::format("{}: incomplete message not forwarded ({})", direction, t.reason));
+            return;
+        }
+        if (!to->connected()) {
+            ++not_forwarded_;
+            problem(std::format("{}: {} records dropped, the {} side is not connected", direction,
+                                t.records.size(), to->status().role));
+            return;
+        }
+        std::vector<std::string> records;
+        records.reserve(t.records.size());
+        for (const auto& r : t.records) {
+            records.push_back(lisbench::to_string(r));
+        }
+        log(std::format("{}: {} records", direction, records.size()), printable_records(t));
+        asio::co_spawn(m_executor(), forward(to, std::move(records), direction, up ? 0 : 1),
+                       asio::detached);
+    }
+
+    asio::awaitable<void> forward(LinkRunner* to, std::vector<std::string> records,
+                                  std::string direction, std::size_t from) {
+        if (const auto r = co_await to->send(std::move(records)); !r) {
+            ++not_forwarded_;
+            problem(std::format("{}: not delivered: {}", direction, r.error()));
+            co_return;
+        }
+        ++forwarded_.at(from);
+        activity(false);
+        manager_.publish(config_.name, "gateway", state());
+    }
+
+    std::array<std::size_t, 2> forwarded_{};  // by source: instrument, lis
+    std::size_t not_forwarded_{0};
+    std::array<bool, 2> refusing_{};  // logged: instrument side, lis side
+};
+
 // --- manager -------------------------------------------------------------------------
 
 Manager::Manager(asio::any_io_executor executor, ManagerOptions options, EventSink sink)
@@ -845,6 +990,8 @@ std::expected<void, std::string> Manager::start(std::string_view name) {
             return std::unexpected(book.error());
         }
         inst = std::make_unique<LisInstance>(*this, executor_, *c, text, timing, std::move(*book));
+    } else if (c->type == SessionType::gateway) {
+        inst = std::make_unique<GatewayInstance>(*this, executor_, *c, text, timing);
     } else {
         inst = std::make_unique<DeviceInstance>(*this, executor_, *c, text, timing, catalog_);
     }
@@ -901,6 +1048,8 @@ std::expected<json, std::string> Manager::details(std::string_view name) const {
         if (c->type == SessionType::lis) {
             auto book = load_book(state_file(name));
             j["state"] = book ? book->to_json() : json::object();
+        } else if (c->type == SessionType::gateway) {
+            j["state"] = GatewayInstance::state_json({}, 0);
         } else {
             j["state"] = json{{"specimens", json::array()}};
         }

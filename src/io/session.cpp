@@ -120,6 +120,10 @@ lis01::MessageId Session::submit(const lis01::Message& message) {
     return id;
 }
 
+void Session::set_receiver_ready(bool ready) {
+    with_link([ready](auto& l) { l.set_receiver_ready(ready); });
+}
+
 asio::awaitable<lis01::Outcome> Session::send(lis01::Message message) {
     const auto id = submit(message);
     while (!results_.contains(id)) {

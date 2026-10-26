@@ -6,14 +6,15 @@
 
 /**
  * @typedef {{role: string, label: string, state: string, detail: string}} LinkStatus
- * @typedef {{name: string, type: "lis" | "device", state: string, links: LinkStatus[],
+ * @typedef {"lis" | "device" | "gateway"} SessionType
+ * @typedef {{name: string, type: SessionType, state: string, links: LinkStatus[],
  *            messages_in: number, messages_out: number, last_activity: string,
  *            last_problem: string, error: string}} SessionStatus
  * @typedef {{port: string, baud: number, data_bits: number, parity: string,
  *            stop_bits: number, flow: string}} SerialCfg
  * @typedef {{role: string, transport: "serial" | "tcp-server" | "tcp-client",
  *            low_level?: string, serial?: SerialCfg, tcp?: {address?: string, host?: string, port: number}}} LinkCfg
- * @typedef {{lisbench: string, name: string, type: "lis" | "device", profile: string,
+ * @typedef {{lisbench: string, name: string, type: SessionType, profile: string,
  *            timing: string, links: LinkCfg[],
  *            lis?: {unsolicited: string, answer_queries: boolean, no_order_reply: string},
  *            device?: {mode: string, specimens: string[] | {prefix: string, start: number},
@@ -288,7 +289,7 @@ function renderSessions() {
     const running = s.state === "running" || s.state === "stopping";
     body.append(h("tr", {},
       h("td", {}, h("a", { href: "#", onclick: (ev) => { ev.preventDefault(); void openSession(s.name); } }, s.name)),
-      h("td", {}, s.type === "lis" ? "LIS simulator" : "instrument simulator"),
+      h("td", {}, TYPE_NAMES[s.type]),
       h("td", {}, badge(s.state), s.error ? h("div", { class: "detail" }, s.error) : null),
       h("td", {}, ...s.links.map(linkView)),
       h("td", {}, `${s.messages_in} / ${s.messages_out}`),
@@ -310,9 +311,19 @@ function renderSessions() {
 
 // --- the session editor ----------------------------------------------------------------
 
-/** @param {"lis" | "device"} type @returns {SessionCfg} */
+/** @type {Record<SessionType, string>} */
+const TYPE_NAMES = { lis: "LIS simulator", device: "instrument simulator", gateway: "gateway" };
+
+/** @param {SessionType} type @returns {SessionCfg} */
 function newConfig(type) {
   const n = statuses.size + 1;
+  if (type === "gateway") {
+    // Typical: a serial instrument with LIS01-A2, a LIS on TCP without it.
+    return { lisbench: "session/1", name: `gateway-${n}`, type, profile: "", timing: "lis01-a2",
+      links: [{ role: "instrument", transport: "serial", low_level: "lis01-a2",
+                serial: { port: ports[0]?.path ?? "", baud: 9600, data_bits: 8, parity: "none", stop_bits: 1, flow: "none" } },
+              { role: "lis", transport: "tcp-client", low_level: "none", tcp: { host: "127.0.0.1", port: 5000 } }] };
+  }
   return type === "lis"
     ? { lisbench: "session/1", name: `lis-${n}`, type, profile: "", timing: "lis01-a2",
         links: [{ role: "main", transport: "tcp-server", tcp: { address: "0.0.0.0", port: 15000 } }],
@@ -395,9 +406,9 @@ function linkEditor(link, title) {
   // seen on TCP (and the same as on the wire behind a serial device server).
   const lowLevel = h("div", { class: "grid" },
     h("label", {}, "Low-level protocol", select("low_level", ["lis01-a2", "none", "mllp"], link.low_level ?? "lis01-a2", {
-      "lis01-a2": "LIS01-A2 (ENQ, frames, ACK, EOT)",
-      none: "none: records with CR, message ends with L",
-      mllp: "MLLP block (VT ... FS CR)",
+      "lis01-a2": "LIS01-A2 (ENQ, frames, EOT)",
+      none: "none (records, ends with L)",
+      mllp: "MLLP (VT ... FS CR)",
     })));
   box.append(transport.el, serialBox, serverBox, clientBox, lowLevel);
   return {
@@ -462,22 +473,33 @@ function openEditor(cfg, isNew) {
   const drawLinks = (/** @type {boolean} */ two) => {
     const base = cfg.links[0] ?? newConfig(cfg.type).links[0];
     const of = (/** @type {string} */ role) => ({ ...(cfg.links.find((l) => l.role === role) ?? base), role });
-    linkEditors = two
-      ? [linkEditor(of("orders"), "Orders (queries in, orders out)"), linkEditor(of("results"), "Results (results in)")]
-      : [linkEditor(of("main"), "Connection")];
+    const gateway = newConfig("gateway").links;
+    const side = (/** @type {number} */ i) => cfg.links.find((l) => l.role === gateway[i].role) ?? gateway[i];
+    linkEditors = cfg.type === "gateway"
+      ? [linkEditor(side(0), "Instrument side (lisbench plays the LIS)"), linkEditor(side(1), "LIS side (lisbench plays the instrument)")]
+      : two
+        ? [linkEditor(of("orders"), "Orders (queries in, orders out)"), linkEditor(of("results"), "Results (results in)")]
+        : [linkEditor(of("main"), "Connection")];
     linksBox.replaceChildren(...linkEditors.map((e) => /** @type {any} */ (e).el));
   };
   drawLinks(separate);
   const twoPorts = /** @type {HTMLInputElement} */ (h("input", { type: "checkbox", checked: separate }));
   twoPorts.addEventListener("change", () => drawLinks(twoPorts.checked));
 
-  form.append(h("h3", {}, `${isNew ? "New" : "Edit"} ${cfg.type === "lis" ? "LIS simulator" : "instrument simulator"}`), general);
+  form.append(h("h3", {}, `${isNew ? "New" : "Edit"} ${TYPE_NAMES[cfg.type]}`), general);
+  if (cfg.type === "gateway") {
+    form.append(h("p", { class: "muted" }, "Forwards whole messages both ways, records unchanged; the sides may differ in "
+      + "transport and low-level protocol. While one side is not connected, a LIS01-A2 side answers ENQ with NAK, so "
+      + "the sender keeps its message; a side without LIS01-A2 cannot refuse, and what it sends then is dropped and reported."));
+  }
   if (cfg.type === "lis") form.append(h("label", { class: "check" }, twoPorts, "separate ports for orders and results"));
   form.append(linksBox);
 
   /** @type {() => Partial<SessionCfg>} */
   let typeSettings;
-  if (cfg.type === "lis") {
+  if (cfg.type === "gateway") {
+    typeSettings = () => ({});
+  } else if (cfg.type === "lis") {
     const l = cfg.lis ?? { unsolicited: "flag", answer_queries: true, no_order_reply: "y-record" };
     const unsolicited = radios("unsolicited", [
       ["flag", "keep for review (assign or discard by hand)"], ["accept", "accept (create the item)"],
@@ -638,7 +660,8 @@ function buildSession(name, pane, d) {
     while (log.childElementCount > 1000) log.firstElementChild?.remove();
     log.scrollTop = log.scrollHeight;
   };
-  const view = d.config.type === "lis" ? lisView(name, body) : deviceView(body);
+  const view = d.config.type === "lis" ? lisView(name, body)
+    : d.config.type === "gateway" ? gatewayView(body) : deviceView(body);
   drawHeader();
   view(d.state);
   for (const e of d.log) addLog(e);
@@ -648,7 +671,7 @@ function buildSession(name, pane, d) {
     render: (/** @type {string} */ kind, /** @type {any} */ data) => {
       if (kind === "status") { status = data; drawHeader(); }
       if (kind === "log") addLog(data);
-      if (kind === "book" || kind === "specimens") view(data);
+      if (kind === "book" || kind === "specimens" || kind === "gateway") view(data);
     },
   };
 }
@@ -758,6 +781,22 @@ function deviceView(body) {
         h("td", {}, s.values.map((v, i) => `${s.tests[i]} ${v}`).join(", ")), h("td", { class: "detail" }, s.note)));
     }
     table.append(tb);
+  };
+}
+
+/**
+ * The gateway: messages forwarded per direction.
+ * @param {HTMLElement} body
+ */
+function gatewayView(body) {
+  const table = h("table", { class: "results" });
+  body.append(h("h3", {}, "Messages"), table);
+  /** @param {{forwarded: {instrument: number, lis: number}, not_forwarded: number}} state */
+  return (state) => {
+    table.replaceChildren(h("tbody", {},
+      h("tr", {}, h("th", {}, "instrument → LIS"), h("td", {}, String(state.forwarded.instrument))),
+      h("tr", {}, h("th", {}, "LIS → instrument"), h("td", {}, String(state.forwarded.lis))),
+      h("tr", {}, h("th", {}, "not forwarded (see the log)"), h("td", {}, String(state.not_forwarded)))));
   };
 }
 
@@ -918,6 +957,7 @@ async function main() {
   setupCatalog();
   document.getElementById("new-lis")?.addEventListener("click", () => openEditor(newConfig("lis"), true));
   document.getElementById("new-device")?.addEventListener("click", () => openEditor(newConfig("device"), true));
+  document.getElementById("new-gateway")?.addEventListener("click", () => openEditor(newConfig("gateway"), true));
   try {
     await loadShared();
     await refreshSessions();

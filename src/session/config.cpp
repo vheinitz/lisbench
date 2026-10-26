@@ -7,6 +7,8 @@
 #include <fstream>
 #include <iterator>
 #include <set>
+#include <string_view>
+#include <vector>
 
 #include "lisbench/sim/scenario.hpp"
 #include "yaml_util.hpp"
@@ -142,10 +144,24 @@ std::string_view unsolicited_name(Unsolicited u) {
     return "?";
 }
 
+std::vector<std::string_view> link_roles(SessionType t) {
+    switch (t) {
+        case SessionType::lis: return {"main", "orders", "results"};
+        case SessionType::device: return {"main"};
+        case SessionType::gateway: return {"instrument", "lis"};
+    }
+    return {};
+}
+
 }  // namespace
 
 std::string_view to_string(SessionType t) noexcept {
-    return t == SessionType::lis ? "lis" : "device";
+    switch (t) {
+        case SessionType::lis: return "lis";
+        case SessionType::device: return "device";
+        case SessionType::gateway: return "gateway";
+    }
+    return "?";
 }
 
 std::string_view to_string(Transport t) noexcept {
@@ -215,7 +231,9 @@ std::expected<SessionConfig, std::string> parse_session(std::string_view yaml) {
             fail(root["name"], "a name has letters, digits, '.', '_' or '-' (at most 64)");
         }
         c.type = choice(root, "type", SessionType::lis,
-                        {{"lis", SessionType::lis}, {"device", SessionType::device}});
+                        {{"lis", SessionType::lis},
+                         {"device", SessionType::device},
+                         {"gateway", SessionType::gateway}});
         c.profile = get<std::string>(root, "profile", "");
         c.fast_timing = choice(root, "timing", false, {{"lis01-a2", false}, {"fast-test", true}});
         if (!root["links"] || root["links"].size() == 0) {
@@ -224,11 +242,14 @@ std::expected<SessionConfig, std::string> parse_session(std::string_view yaml) {
         std::set<std::string> roles;
         for (const auto& n : root["links"]) {
             auto l = link_of(n);
-            const bool known = l.role == "main" || (c.type == SessionType::lis &&
-                                                    (l.role == "orders" || l.role == "results"));
-            if (!known) {
-                fail(n, std::format("role '{}' is not valid here (main{})", l.role,
-                                    c.type == SessionType::lis ? ", orders, results" : ""));
+            const auto valid = link_roles(c.type);
+            if (std::ranges::find(valid, l.role) == valid.end()) {
+                // No ranges::to before GCC 14 (see compat.hpp).
+                std::string names;
+                for (const auto v : valid) {
+                    names += names.empty() ? std::string{v} : std::format(", {}", v);
+                }
+                fail(n, std::format("role '{}' is not valid here ({})", l.role, names));
             }
             if (!roles.insert(l.role).second) {
                 fail(n, std::format("role '{}' appears twice", l.role));
@@ -237,6 +258,9 @@ std::expected<SessionConfig, std::string> parse_session(std::string_view yaml) {
         }
         if (roles.contains("main") && roles.size() > 1) {
             fail(root["links"], "use either one 'main' link or 'orders' and 'results'");
+        }
+        if (c.type == SessionType::gateway && roles.size() != 2) {
+            fail(root["links"], "a gateway has two links: 'instrument' and 'lis'");
         }
         if (roles.contains("orders") != roles.contains("results")) {
             fail(root["links"], "'orders' and 'results' come together");
@@ -349,7 +373,7 @@ std::string to_yaml(const SessionConfig& c) {
         out << YAML::Key << "no_order_reply" << YAML::Value
             << (c.lis.no_order_reply == NoOrderReply::y_record ? "y-record" : "empty");
         out << YAML::EndMap;
-    } else {
+    } else if (c.type == SessionType::device) {
         const auto& d = c.device;
         out << YAML::Key << "device" << YAML::Value << YAML::BeginMap;
         out << YAML::Key << "mode" << YAML::Value
@@ -407,7 +431,7 @@ nlohmann::json config_json(const SessionConfig& c) {
                     {"answer_queries", c.lis.answer_queries},
                     {"no_order_reply",
                      c.lis.no_order_reply == NoOrderReply::y_record ? "y-record" : "empty"}};
-    } else {
+    } else if (c.type == SessionType::device) {
         const auto& d = c.device;
         json specimens = d.specimens.empty() ? json{{"prefix", d.prefix}, {"start", d.start}}
                                              : json(d.specimens);

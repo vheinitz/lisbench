@@ -19,14 +19,17 @@ namespace lisbench::session {
 
 using std::chrono::milliseconds;
 
-enum class SessionType : std::uint8_t { lis, device };
+// gateway: forwards whole messages between an instrument side and a LIS
+// side, each with its own transport and low-level protocol (9.10).
+enum class SessionType : std::uint8_t { lis, device, gateway };
 enum class Transport : std::uint8_t { serial, tcp_server, tcp_client };
 
 [[nodiscard]] std::string_view to_string(SessionType t) noexcept;
 [[nodiscard]] std::string_view to_string(Transport t) noexcept;
 
 struct LinkConfig {
-    std::string role{"main"};  // main, or orders / results (LIS with two ports)
+    std::string role{"main"};  // main, or orders / results (LIS with two ports); gateway:
+                               // instrument and lis
     Transport transport{Transport::tcp_server};
     LowLevel low_level{LowLevel::lis01_a2};
     io::Serial serial{};          // its low_level is not used: see above

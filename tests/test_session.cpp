@@ -5,6 +5,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <format>
+
 #include "lisbench/session/catalog.hpp"
 #include "lisbench/session/config.hpp"
 #include "lisbench/session/device_model.hpp"
@@ -163,6 +165,36 @@ links:
     CHECK_FALSE(
         parse_session("lisbench: session/1\nname: x\ntype: lis\nlinks: [{transport: "
                       "tcp-server, low_level: hl7, tcp: {port: 1}}]\n"));
+}
+
+TEST_CASE("session file: a gateway joins an instrument side and a LIS side") {
+    const auto c = parse_session(R"(
+lisbench: session/1
+name: gw
+type: gateway
+links:
+  - {role: instrument, transport: serial, serial: {port: /dev/ttyUSB0}}
+  - {role: lis, transport: tcp-client, low_level: mllp, tcp: {host: 10.0.0.5, port: 5000}}
+)");
+    REQUIRE(c);
+    CHECK(c->type == SessionType::gateway);
+    CHECK(c->links.at(1).low_level == LowLevel::mllp);
+    CHECK(parse_session(to_yaml(*c)).value() == *c);
+    CHECK(parse_session(config_json(*c).dump()).value() == *c);
+
+    const auto base = std::string{"lisbench: session/1\nname: gw\ntype: gateway\n"};
+    const auto side = [](const char* role, int port) {
+        return std::format("  - {{role: {}, transport: tcp-server, tcp: {{port: {}}}}}\n", role,
+                           port);
+    };
+    for (const auto& bad : {
+             base + "links:\n" + side("instrument", 1),  // one side only
+             base + "links:\n" + side("main", 1) + side("lis", 2),
+             base + "links:\n" + side("instrument", 1) + side("lis", 2) + "lis: {}\n",
+         }) {
+        INFO(bad);
+        CHECK_FALSE(parse_session(bad));
+    }
 }
 
 TEST_CASE("order book: host query through to final, item states follow the messages") {
@@ -514,6 +546,82 @@ TEST_CASE("session manager: one LIS and two instruments on one event loop") {
     CHECK(state_of(saved, "S-1", "GLU") == "final");
     REQUIRE(m.remove("lis-copy"));
     CHECK(m.list().size() == 4);
+    fs::remove_all(dir);
+}
+
+TEST_CASE("session manager: gateway LIS01-A2 to MLLP refuses while the LIS is away") {
+    namespace fs = std::filesystem;
+    const auto dir = fs::temp_directory_path() / "lisbench_session_gateway_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    std::ofstream(dir / "catalog.yaml") << catalog_yaml;
+    const auto instrument_port = free_port();
+    const auto lis_port = free_port();
+
+    asio::io_context io;
+    Manager m{io.get_executor(), {.data_dir = dir, .profile_search = {}}, {}};
+    const auto tcp = [](std::string role, Transport t, std::uint16_t port, LowLevel l) {
+        return LinkConfig{.role = std::move(role),
+                          .transport = t,
+                          .low_level = l,
+                          .host = "127.0.0.1",
+                          .port = port};
+    };
+    REQUIRE(m.save({.name = "lis",
+                    .type = SessionType::lis,
+                    .fast_timing = true,
+                    .links = {tcp("main", Transport::tcp_server, lis_port, LowLevel::mllp)}}));
+    REQUIRE(m.save(
+        {.name = "gw",
+         .type = SessionType::gateway,
+         .fast_timing = true,
+         .links = {tcp("instrument", Transport::tcp_server, instrument_port, LowLevel::lis01_a2),
+                   tcp("lis", Transport::tcp_client, lis_port, LowLevel::mllp)}}));
+    REQUIRE(
+        m.save({.name = "asking",
+                .type = SessionType::device,
+                .fast_timing = true,
+                .links = {tcp("main", Transport::tcp_client, instrument_port, LowLevel::lis01_a2)},
+                .device = {.mode = DeviceMode::host_query,
+                           .specimens = {"S-1"},
+                           .interval = 100ms,
+                           .query_timeout = 20s,
+                           .measure_time = 100ms}}));
+    REQUIRE(m.edit_book("lis", [](OrderBook& b) -> std::expected<void, std::string> {
+        if (auto r = b.add_specimen({.id = "S-1"}); !r) {
+            return r;
+        }
+        return b.add_test("S-1", "GLU");
+    }));
+
+    // No LIS yet: the gateway answers the instrument's ENQ with NAK; the
+    // instrument keeps the query and asks again (busy retry).
+    REQUIRE(m.start("gw"));
+    REQUIRE(m.start("asking"));
+    io.run_for(2500ms);
+    auto gw = m.details("gw").value();
+    CHECK(gw["state"]["forwarded"]["instrument"] == 0);
+    CHECK(m.details("asking").value()["state"]["specimens"][0]["state"] == "queued");
+    bool told = false;
+    for (const auto& e : gw["log"]) {
+        told = told || e["text"].get<std::string>().contains("answers ENQ with NAK");
+    }
+    CHECK(told);
+
+    // The LIS comes: query, orders, results go through.
+    REQUIRE(m.start("lis"));
+    io.run_for(6s);
+    gw = m.details("gw").value();
+    const auto lis = m.details("lis").value();
+    const auto asking = m.details("asking").value();
+    m.stop_all();
+    io.run_for(1s);
+    INFO(gw.dump(1));
+    CHECK(asking["state"]["specimens"][0]["state"] == "reported");
+    CHECK(state_of(OrderBook::from_json(lis["state"]).value(), "S-1", "GLU") == "final");
+    CHECK(gw["state"]["forwarded"]["instrument"] == 2);  // query, results
+    CHECK(gw["state"]["forwarded"]["lis"] == 1);         // orders
+    CHECK(gw["state"]["not_forwarded"] == 0);
     fs::remove_all(dir);
 }
 

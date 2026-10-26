@@ -82,6 +82,10 @@ public:
     // Next received transfer, or nullopt after the timeout or disconnect.
     asio::awaitable<std::optional<Transfer>> receive(std::chrono::milliseconds timeout);
 
+    // false: an ENQ is answered with NAK (LIS01-A2; without it there is no
+    // way to refuse, see UnframedLink).
+    void set_receiver_ready(bool ready);
+
     // Closes the stream; run() then finishes.
     void stop();
     [[nodiscard]] bool running() const noexcept { return !closing_; }
