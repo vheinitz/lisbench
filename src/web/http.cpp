@@ -148,6 +148,7 @@ std::string_view reason(int status) noexcept {
     switch (status) {
         case 200: return "OK";
         case 204: return "No Content";
+        case 304: return "Not Modified";
         case 400: return "Bad Request";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
@@ -165,11 +166,15 @@ std::string_view reason(int status) noexcept {
 std::string serialize(const Response& r) {
     std::string out = std::format("HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
                                   r.status, reason(r.status), r.content_type, r.body.size());
+    bool cache_control = false;
     for (const auto& [name, value] : r.headers) {
         out += std::format("{}: {}\r\n", name, value);
+        cache_control = cache_control || name == "Cache-Control";
     }
-    out +=
-        "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n";
+    if (!cache_control) {
+        out += "Cache-Control: no-store\r\n";  // API answers are always current
+    }
+    out += "X-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n";
     out += r.body;
     return out;
 }

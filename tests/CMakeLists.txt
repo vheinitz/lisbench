@@ -29,7 +29,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(lisbench_tests PRIVATE util)
 endif()
 target_compile_definitions(lisbench_tests PRIVATE LISBENCH_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/corpus"
-                                                  LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices")
+                                                  LISBENCH_DEVICES_DIR="${PROJECT_SOURCE_DIR}/docs/devices"
+                                                  LISBENCH_WEB_DIR="${PROJECT_SOURCE_DIR}/web")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
 # PRE_TEST: a cross build cannot run the test binary while it is being built.

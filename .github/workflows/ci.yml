@@ -1,11 +1,35 @@
 name: ci
 
+# Nightly instead of on every push (2026-10-26: "For CI commits, please run
+# only nightly CI builds"); version tags still build and release at once, and
+# a run can be started by hand.
 on:
+  schedule:
+    - cron: "17 2 * * *"  # 02:17 UTC
   push:
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
+  # A nightly run without commits in the last day builds nothing.
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" != schedule ] || [ -n "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
+            echo run=true >> "$GITHUB_OUTPUT"
+          else
+            echo run=false >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -29,6 +53,8 @@ jobs:
       - run: ctest --test-dir build --output-on-failure
 
   sanitizers:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -39,19 +65,23 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - run: pip install clang-tidy==19.1.0 clang-format==19.1.0
       - run: clang-format --dry-run --Werror $(git ls-files '*.cpp' '*.hpp')
       - name: type-check the web UI script (no build step, tsc only checks)
-        run: npx --yes -p typescript@5.6.3 tsc --noEmit --allowJs --checkJs --strict --target es2022 --module es2022 --lib es2022,dom,dom.iterable web/app.js web/sessions.js
+        run: npx --yes -p typescript@5.6.3 tsc --noEmit --allowJs --checkJs --strict --target es2022 --module es2022 --lib es2022,dom,dom.iterable web/app.js web/sessions.js web/knowledge.js
       - run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: cmake --build build --target lisbench
       # The database comes from GCC; its GCC-only warning flags are unknown to clang.
       - run: clang-tidy -p build --extra-arg=-Wno-unknown-warning-option $(git ls-files 'src/*.cpp' 'apps/*.cpp')
 
   fuzz:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +96,8 @@ jobs:
           done
 
   arduino:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -85,6 +117,8 @@ jobs:
   # tests run under qemu-user. Cases with sub-second real-time limits are left
   # to the native jobs above, since emulated time is too uneven for them.
   packages:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     name: deb-${{ matrix.arch }}
     runs-on: ubuntu-24.04
     container: debian:trixie
@@ -139,7 +173,7 @@ jobs:
   # On a version tag: create the release from CHANGELOG.md and attach the packages.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, sanitizers, lint, packages]
+    needs: [changes, build, sanitizers, lint, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -2,6 +2,14 @@
 
 #include <asio/experimental/awaitable_operators.hpp>
 
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <iterator>
+#include <regex>
+#include <string>
+
+#include "lisbench/lis02_records.hpp"
 #include "lisbench/web/http.hpp"
 #include "lisbench/web/server.hpp"
 
@@ -105,6 +113,12 @@ TEST_CASE("server: routes, files, 404/405, and events to every stream") {
         [&]() -> asio::awaitable<void> {
             got["hello"] = co_await fetch(port, "GET /api/hello?n=lis HTTP/1.1\r\n\r\n");
             got["index"] = co_await fetch(port, "GET / HTTP/1.1\r\n\r\n");
+            // The browser asks again with the ETag it got: 304, no body.
+            const auto etag_at = got["index"].find("ETag: ");
+            const auto etag =
+                got["index"].substr(etag_at + 6, got["index"].find("\r\n", etag_at) - etag_at - 6);
+            got["304"] = co_await fetch(
+                port, std::format("GET /index.html HTTP/1.1\r\nIf-None-Match: {}\r\n\r\n", etag));
             got["404"] = co_await fetch(port, "GET /nope HTTP/1.1\r\n\r\n");
             got["405"] = co_await fetch(port, "DELETE /api/hello HTTP/1.1\r\n\r\n");
             got["500"] =
@@ -150,6 +164,11 @@ TEST_CASE("server: routes, files, 404/405, and events to every stream") {
     CHECK(got["hello"].ends_with(R"({"name":"lis"})"));
     CHECK(got["index"].contains("Content-Type: text/html; charset=utf-8"));
     CHECK(got["index"].ends_with(page));
+    CHECK(got["index"].contains("Cache-Control: no-cache\r\n"));
+    CHECK_FALSE(got["index"].contains("no-store"));
+    CHECK(got["304"].starts_with("HTTP/1.1 304 Not Modified"));
+    CHECK(got["304"].ends_with("\r\n\r\n"));
+    CHECK(got["hello"].contains("Cache-Control: no-store\r\n"));  // API: never cached
     CHECK(got["404"].starts_with("HTTP/1.1 404"));
     CHECK(got["405"].starts_with("HTTP/1.1 405"));
     CHECK(got["500"].starts_with("HTTP/1.1 500"));
@@ -161,4 +180,21 @@ TEST_CASE("server: routes, files, 404/405, and events to every stream") {
         CHECK(got[key].contains("Content-Type: text/event-stream"));
         CHECK(got[key].contains("event: status\ndata: {\"running\":false}\n\n"));
     }
+}
+
+TEST_CASE("knowledge page: every note names a field of the record table") {
+    std::ifstream in{std::filesystem::path{LISBENCH_WEB_DIR} / "knowledge.js"};
+    REQUIRE(in);
+    const std::string js{std::istreambuf_iterator<char>{in}, {}};
+    const std::regex key{R"re("([HPORCQLSM])\.([a-z_0-9]+)": \{)re"};
+    std::size_t keys = 0;
+    for (auto it = std::sregex_iterator{js.begin(), js.end(), key}; it != std::sregex_iterator{};
+         ++it) {
+        const auto type = lisbench::lis02::record_type((*it)[1].str().front());
+        INFO((*it)[0].str());
+        REQUIRE(type);
+        CHECK(lisbench::lis02::field_number(*type, (*it)[2].str()));
+        ++keys;
+    }
+    CHECK(keys > 40);
 }

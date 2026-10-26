@@ -13,6 +13,7 @@
 #include "lisbench/io/faults.hpp"
 #include "lisbench/io/ports.hpp"
 #include "lisbench/io/relay.hpp"
+#include "lisbench/lis02_records.hpp"
 #include "lisbench/monitor/capture.hpp"
 #include "lisbench/monitor/monitor.hpp"
 #include "lisbench/printable.hpp"
@@ -605,6 +606,25 @@ struct App::State {
                         list.push_back(e.path().filename().string());
                     }
                 }
+            }
+            return json_response(list.dump());
+        });
+        // The LIS02-A2 record table, for the knowledge page.
+        get("/api/lis02/records", [](const Request&) {
+            json list = json::array();
+            for (const auto t :
+                 {lis02::RecordType::header, lis02::RecordType::patient, lis02::RecordType::order,
+                  lis02::RecordType::result, lis02::RecordType::comment, lis02::RecordType::query,
+                  lis02::RecordType::terminator, lis02::RecordType::scientific,
+                  lis02::RecordType::manufacturer}) {
+                const auto& i = lis02::info(t);
+                json fields = json::array();
+                for (const auto f : i.fields) {
+                    fields.push_back(f);
+                }
+                list.push_back({{"type", std::string(1, static_cast<char>(t))},
+                                {"name", i.name},
+                                {"fields", std::move(fields)}});
             }
             return json_response(list.dump());
         });

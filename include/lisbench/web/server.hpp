@@ -67,6 +67,7 @@ private:
     struct File {
         std::string content_type;
         std::string_view data;
+        std::string etag;  // of the content: the browser asks again, gets 304 if unchanged
     };
 
     asio::awaitable<void> serve(asio::ip::tcp::socket socket);

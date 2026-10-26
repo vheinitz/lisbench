@@ -12,6 +12,15 @@
   (state files with the old list are read). Tests are added per specimen
   from a catalogue choice and removed with one click; "Clear order book"
   (two clicks) empties it. The priority column and field are gone.
+- Web UI: knowledge page (`/knowledge.html`, "Knowledge" in the top bar):
+  which ASTM and CLSI standard is which, LIS01-A2 link rules with the
+  conformance cases that check them, LIS02-A2 structure, workflows, related
+  standards (HL7 v2, IHE LAW, POCT1) and terms; a field reference built
+  from the record table with codes, conventions and known issues per field.
+- Web server: built-in files carry an ETag and are revalidated by the
+  browser (304 when unchanged); API answers stay uncached.
+- CI runs nightly (only when there were commits), on version tags, pull
+  requests and by hand, no longer on every push.
 - API: `/api/lis/unmatched` replaced by `/api/lis/accept` and
   `/api/lis/test/delete`; new `/api/lis/clear`.
 

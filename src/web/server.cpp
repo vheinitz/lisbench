@@ -3,6 +3,8 @@
 #include <asio/experimental/awaitable_operators.hpp>
 
 #include <algorithm>
+#include <cstdint>
+#include <format>
 
 namespace lisbench::web {
 
@@ -27,7 +29,13 @@ void Server::route(std::string method, std::string path, Handler handler) {
 }
 
 void Server::file(std::string path, std::string content_type, std::string_view data) {
-    files_[std::move(path)] = File{.content_type = std::move(content_type), .data = data};
+    std::uint64_t hash = 14695981039346656037ULL;  // FNV-1a
+    for (const char c : data) {
+        hash = (hash ^ static_cast<unsigned char>(c)) * 1099511628211ULL;
+    }
+    files_[std::move(path)] = File{.content_type = std::move(content_type),
+                                   .data = data,
+                                   .etag = std::format("\"{:016x}\"", hash)};
 }
 
 void Server::publish(std::string_view event, std::string_view data) {
@@ -136,10 +144,20 @@ asio::awaitable<Response> Server::dispatch(Request request) {
     if (request.method == "GET") {
         const auto path = request.path == "/" ? std::string{"/index.html"} : request.path;
         if (const auto it = files_.find(path); it != files_.end()) {
+            // The files are built in, so they change only with the program:
+            // the browser keeps them and asks with the ETag whether they did.
+            std::vector<std::pair<std::string, std::string>> headers{{"ETag", it->second.etag},
+                                                                     {"Cache-Control", "no-cache"}};
+            if (request.header("if-none-match") == it->second.etag) {
+                co_return Response{.status = 304,
+                                   .content_type = it->second.content_type,
+                                   .body = {},
+                                   .headers = std::move(headers)};
+            }
             co_return Response{.status = 200,
                                .content_type = it->second.content_type,
                                .body = std::string{it->second.data},
-                               .headers = {}};
+                               .headers = std::move(headers)};
         }
     }
     co_return path_known ? error(405, "method not allowed") : error(404, "not found");

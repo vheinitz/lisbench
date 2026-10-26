@@ -205,3 +205,5 @@ table.edit input, table.edit select { width: 100%; min-width: 4em; padding: 3px 
 .port-picker option { color: var(--text); background: var(--panel); }
 .item .small { margin-left: 4px; }
 select.add-test { padding: 2px 6px; font-size: 12px; margin-top: 4px; }
+a.navlink { padding: 6px 14px; border: 1px solid transparent; border-radius: 6px; color: var(--text); text-decoration: none; }
+a.navlink:hover { background: var(--neutral-bg); border-color: var(--line); }

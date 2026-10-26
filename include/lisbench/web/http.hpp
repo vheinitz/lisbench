@@ -68,7 +68,8 @@ struct Response {
 };
 
 [[nodiscard]] std::string_view reason(int status) noexcept;
-// Status line, headers (with Content-Length, Connection: close) and body.
+// Status line, headers (with Content-Length, Connection: close, and
+// Cache-Control: no-store unless r.headers has a Cache-Control) and body.
 [[nodiscard]] std::string serialize(const Response& r);
 
 [[nodiscard]] Response json_response(std::string body, int status = 200);

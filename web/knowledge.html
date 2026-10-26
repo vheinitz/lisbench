@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lisbench knowledge</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  main.kb { max-width: 1000px; }
+  .kb h2 { font-size: 18px; margin: 28px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .kb h3 { font-size: 15px; margin: 18px 0 6px; }
+  .kb p, .kb li { max-width: 80ch; }
+  .kb code, .kb pre { font-family: var(--mono); font-size: 12.5px; }
+  .kb pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+  .kb table.results { margin: 8px 0 12px; }
+  .kb table.results td { font-size: 13px; }
+  .kb td.num { font-family: var(--mono); white-space: nowrap; }
+  .kb .toc { columns: 2 220px; padding-left: 18px; }
+  .kb .note-std { color: var(--text); }
+  .kb .note-conv::before { content: "convention: "; font-weight: 600; color: var(--muted); }
+  .kb .note-issue::before { content: "known issue: "; font-weight: 600; color: var(--bad); }
+  .kb .note-ref::before { content: "lisbench: "; font-weight: 600; color: var(--accent); }
+  .kb td > div + div { margin-top: 3px; }
+  .kb .codes { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .kb .filter { margin: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .kb .filter input { width: min(320px, 100%); }
+  .kb .legend span { margin-right: 14px; }
+  .kb #field-tables table { table-layout: fixed; }
+  .kb #field-tables th:nth-child(1) { width: 5em; }
+  .kb #field-tables th:nth-child(2) { width: 30%; }
+  .kb .filter label { white-space: nowrap; }
+</style>
+</head>
+<body>
+<!--
+  Written 2026-10-26 on request ("bitte eine Knowledge Seite in Webview zu den
+  Protokollen astmxxx und LISxxx mit Querreferenzen und Unterschieden … if
+  fields have known issues or mostly follow some known conventions, please
+  note it"). In our own words; nothing is copied from the standards, which
+  are sold by ASTM and CLSI. Field tables come from the record table in
+  src/lis02_records.cpp through /api/lis02/records; notes in knowledge.js.
+-->
+<header>
+  <h1>lisbench</h1>
+  <nav>
+    <a class="navlink" href="/">Back to the sessions</a>
+  </nav>
+</header>
+
+<main class="kb">
+<h1 style="margin-top:16px">Knowledge: ASTM E1381 / E1394 and CLSI LIS01 / LIS02</h1>
+<p class="muted">Written 2026-10-26 for lisbench, in our own words. It does not replace the standards: buy them from CLSI
+  (LIS01-A2, LIS02-A2) for the binding text. Statements marked <em>convention</em> describe common practice seen in
+  instrument manuals and interfaces, not the standard; <em>known issue</em> marks frequent deviations that an interface
+  should expect. Corrections are welcome as issues in the repository.</p>
+
+<ul class="toc">
+  <li><a href="#lineage">Which standard is which</a></li>
+  <li><a href="#layers">Layers</a></li>
+  <li><a href="#lis01">LIS01-A2: the link</a></li>
+  <li><a href="#lis01-issues">LIS01: conventions and known issues</a></li>
+  <li><a href="#lis02">LIS02-A2: the message</a></li>
+  <li><a href="#lis02-issues">LIS02: conventions and known issues</a></li>
+  <li><a href="#workflows">Workflows: batch, host query, unsolicited</a></li>
+  <li><a href="#fields">Field reference</a></li>
+  <li><a href="#others">Related standards: HL7, IHE LAW, POCT1</a></li>
+  <li><a href="#terms">Terms</a></li>
+</ul>
+
+<h2 id="lineage">Which standard is which</h2>
+<p>Two ASTM specifications from the early 1990s define nearly every serial interface between a laboratory
+  instrument and a laboratory information system (LIS). ASTM handed them to NCCLS, now CLSI, which publishes them
+  as the LIS series; ASTM withdrew its own editions. The content carried over; CLSI revised the text editorially.</p>
+<table class="results">
+  <thead><tr><th>Topic</th><th>ASTM (withdrawn)</th><th>CLSI (current)</th><th>Covers</th></tr></thead>
+  <tbody>
+    <tr><td>Low-level protocol</td><td>E1381-91, E1381-95</td><td>LIS1-A, now <b>LIS01-A2</b> (2008)</td>
+      <td>Serial line, link establishment, frames, checksum, retries, timeouts</td></tr>
+    <tr><td>Message content</td><td>E1394-91, E1394-97</td><td>LIS2-A, now <b>LIS02-A2</b> (2004)</td>
+      <td>Records H P O R C Q L M S, fields, delimiters, codes</td></tr>
+    <tr><td>Clinical observations between computer systems</td><td>E1238</td><td>LIS5-A</td>
+      <td>System-to-system result reporting; the ancestor of the HL7 v2 observation segments (OBR, OBX)</td></tr>
+  </tbody>
+</table>
+<p>Names in use for the same thing: "ASTM protocol", "ASTM 1394", "E1394", "LIS2", "LIS02-A2", "CLSI LIS02". In
+  instrument manuals "ASTM" without a number nearly always means the pair E1381 + E1394. CLSI moved to two-digit
+  numbers (LIS1 &rarr; LIS01), so both spellings exist.</p>
+<p><b>Differences between the editions</b> matter little in practice: record types, field positions and codes are
+  the same in E1394-97 and LIS02-A2, and the link rules of E1381-95 and LIS01-A2 match. What differs between
+  interfaces is the <em>version string</em> an instrument puts in H-13 (see the field reference) and how strictly
+  it follows the rules, not the edition it cites.</p>
+
+<h2 id="layers">Layers</h2>
+<pre>
+ LIS02-A2  message     H|\^&amp;|||...   P|1|...   O|1|S-1||^^^GLU   R|1|^^^GLU|97|mg/dL   L|1|N
+           (records, one per line, CR at the end of each)
+ ---------------------------------------------------------------------------------------------
+ LIS01-A2  data link   ENQ  &lt;STX&gt;1H|\^&amp;...&lt;CR&gt;&lt;ETX&gt;C1C2&lt;CR&gt;&lt;LF&gt;  ACK  ...  EOT
+           physical    RS-232, 9600 8N1 by default  (or, by convention, a TCP connection)
+</pre>
+<p>The two layers are independent: a LIS02 message can travel over another link (a file, a TCP stream without
+  framing, an HL7 envelope), and LIS01 framing can carry other content. lisbench keeps them apart the same way:
+  <code>frame</code>/<code>deframe</code> and the <code>conform</code> suite work on LIS01, <code>decode</code>,
+  <code>validate</code> and the sessions on LIS02.</p>
+
+<h2 id="lis01">LIS01-A2: the link</h2>
+<h3>Physical layer</h3>
+<p>A point-to-point serial line. Default 9600 baud, 8 data bits, no parity, 1 stop bit; other rates and settings by
+  agreement of both sides. No hardware or software flow control is needed, because the link protocol itself
+  paces the data (one frame, then wait for the answer).</p>
+<h3>Phases</h3>
+<ol>
+  <li><b>Establishment.</b> The side with data sends <code>ENQ</code>. The receiver answers <code>ACK</code> (ready)
+    or <code>NAK</code> (busy).</li>
+  <li><b>Transfer.</b> The sender sends frames one at a time; each is answered with <code>ACK</code> (accepted, next
+    frame), <code>NAK</code> (rejected, send it again) or <code>EOT</code> (receiver interrupt, see below).</li>
+  <li><b>Termination.</b> The sender sends <code>EOT</code>; both sides are idle again and either may start.</li>
+</ol>
+<h3>Frame</h3>
+<pre>&lt;STX&gt; FN text &lt;ETB or ETX&gt; C1 C2 &lt;CR&gt; &lt;LF&gt;</pre>
+<ul>
+  <li><b>FN</b>: frame number, one ASCII digit <code>0</code>&ndash;<code>7</code>. The first frame of a transfer is
+    <code>1</code>, then counting on modulo 8 (&hellip; 7, 0, 1 &hellip;) across all frames of the transfer.</li>
+  <li><b>text</b>: at most 240 characters; a frame is at most 247 characters in total. A record ends with
+    <code>CR</code> inside the text.</li>
+  <li><b>ETX</b> ends the last frame of a record, <b>ETB</b> an intermediate frame of a record longer than 240
+    characters.</li>
+  <li><b>C1 C2</b>: checksum, the sum of all characters from FN through ETB/ETX inclusive, modulo 256, written as two
+    upper-case hex digits.</li>
+  <li><b>Restricted characters</b> must not appear in the text: SOH, STX, ETX, EOT, ENQ, ACK, DLE, DC1&ndash;DC4, NAK,
+    SYN, ETB and LF. CR only ends a record.</li>
+</ul>
+<p>Example: the frame text <code>1L|1|N&lt;CR&gt;&lt;ETX&gt;</code> sums to 0x1D3 &rarr; checksum <code>D3</code>.
+  Try <code>lisbench frame</code> to see it for any record.</p>
+<h3>Timers and limits</h3>
+<table class="results">
+  <thead><tr><th>Situation</th><th>Rule</th><th>lisbench check</th></tr></thead>
+  <tbody>
+    <tr><td>Sender waits for the answer to ENQ or a frame</td><td>15 s, then it gives up (EOT)</td><td>TS04, TR06</td></tr>
+    <tr><td>Receiver waits for the next frame or EOT</td><td>30 s, then it returns to idle</td><td>&ndash;</td></tr>
+    <tr><td>ENQ answered with NAK (busy)</td><td>wait at least 10 s before the next ENQ</td><td>TS05</td></tr>
+    <tr><td>Frame answered with NAK, or a bad answer</td><td>send the same frame again, same FN; after 6 transmissions give up with EOT</td><td>TR02, TR03, TS02, TS03</td></tr>
+    <tr><td>Lost ACK: the receiver gets the same frame twice</td><td>it ACKs the repeat and keeps one copy</td><td>TR04</td></tr>
+    <tr><td>Contention: both send ENQ at once</td><td>the instrument wins: the computer system answers nothing and waits 20 s; the instrument waits 1 s and sends ENQ again</td><td>TS06</td></tr>
+    <tr><td>Receiver interrupt: a frame answered with EOT</td><td>a request to stop; the sender may honour it (end with EOT, let the other side send) or treat it as ACK and continue</td><td>TS07</td></tr>
+    <tr><td>Frame format, length, ETB/ETX</td><td>as above</td><td>TS01, TR05</td></tr>
+    <tr><td>Restricted character in the text</td><td>the receiver rejects the frame with NAK</td><td>TR07</td></tr>
+  </tbody>
+</table>
+<p class="muted">TR = the implementation under test receives, TS = it sends; run them with <code>lisbench conform</code>
+  or under Tools &rarr; Conformance. There is no application-level acknowledgement in either standard: an ACK says
+  that a frame arrived intact, not that the LIS stored the result.</p>
+
+<h2 id="lis01-issues">LIS01: conventions and known issues</h2>
+<ul>
+  <li class="note-conv">Over TCP/IP the data link layer is usually kept unchanged (ENQ/ACK, frames, EOT) on a plain
+    socket. Which side listens differs per instrument and must be configured. Some instruments drop the link layer on
+    TCP and send bare records ending with CR, or wrap the message in an HL7-style MLLP envelope.</li>
+  <li class="note-conv">One record per frame, split with ETB only when longer than 240 characters. Some senders pack
+    several records into one frame; a robust receiver accepts both.</li>
+  <li class="note-issue">Checksum in lower-case hex, or computed without FN, or including STX.</li>
+  <li class="note-issue">Frame numbers that start at 0, or restart at 1 for every record.</li>
+  <li class="note-issue">LF missing after CR, or a frame longer than 247 characters (the whole message in one frame).
+    <span class="note-ref">a profile can raise the accepted text length.</span></li>
+  <li class="note-issue">Receiver interrupt not honoured, or not sent at all (the receiver lets a long transfer run).
+    <span class="note-ref">profile field <code>honours_receiver_interrupt</code>.</span></li>
+  <li class="note-issue">Contention handled the other way round: the instrument yields to the LIS. If both sides yield,
+    or both insist, the link deadlocks until a timeout.
+    <span class="note-ref">profile field <code>contention_winner</code>.</span></li>
+  <li class="note-issue">A LIS that needs longer than 15 s to answer a query: the instrument has already given up.
+    Query answers have to come from a fast lookup, not from a slow report.</li>
+  <li class="note-issue">An instrument that resets when the serial port is opened (common with USB adapters and
+    microcontroller boards), and sends nothing for some seconds.</li>
+</ul>
+
+<h2 id="lis02">LIS02-A2: the message</h2>
+<h3>Structure</h3>
+<p>A message starts with an H (header) record and ends with an L (terminator) record. In between the records form a
+  hierarchy given only by their order:</p>
+<pre>
+H                         header: delimiters, sender, receiver, version, time
+  P                       patient (may be nearly empty, e.g. for QC)
+    O                     order: one specimen and one or more tests
+      R                   result for one test of that order
+        C                 comment on the record just before it (any level)
+      R ...
+    O ...
+  P ...
+L                         terminator
+---
+H  Q  L                   a query (request for information) message
+M                         manufacturer-defined record, anywhere the maker says
+S                         scientific record (reserved; hardly ever seen)
+</pre>
+<ul>
+  <li><b>Sequence numbers</b> (field 2) start at 1 and count the records of one type under the same parent: P 1, 2,
+    &hellip; per message; O starts again at 1 under each P, R again under each O.
+    <span class="note-ref"><code>lisbench validate</code> checks order, hierarchy and numbering.</span></li>
+  <li><b>Field numbering</b>: field 1 is the record type letter, so O-3 is the third field of an O record. lisbench
+    numbers fields this way everywhere.</li>
+  <li><b>Delimiters</b> are declared in the header: the character right after <code>H</code> is the field delimiter,
+    the next three (H-2) are the repeat, component and escape delimiters. The usual set is
+    <code>| \ ^ &amp;</code>, written <code>H|\^&amp;</code>.</li>
+  <li><b>Escapes</b> inside field values, shown with <code>&amp;</code> as escape delimiter: <code>&amp;F&amp;</code>
+    field, <code>&amp;S&amp;</code> component, <code>&amp;R&amp;</code> repeat, <code>&amp;E&amp;</code> escape
+    delimiter, <code>&amp;X..&amp;</code> hex bytes, <code>&amp;Z..&amp;</code> local (left to the partners).</li>
+  <li><b>Empty fields</b> are written as nothing between delimiters; trailing empty fields may be left out entirely.</li>
+  <li><b>Date and time</b>: <code>YYYYMMDDHHMMSS</code>, shortened from the right when less is known (a birthdate is
+    <code>YYYYMMDD</code>). No time zone.</li>
+  <li><b>Character set</b>: 7-bit ASCII; anything else only by agreement.
+    <span class="note-ref">decoder options <code>--charset</code>, <code>--local-escape</code>, and profiles.</span></li>
+</ul>
+
+<h2 id="lis02-issues">LIS02: conventions and known issues</h2>
+<ul>
+  <li class="note-conv">Test codes go into the fourth component of the universal test ID: <code>^^^GLU</code>. The first
+    three components (a "universal" code, name, type) are mostly left empty.</li>
+  <li class="note-conv">Several tests in one O record are separated by the repeat delimiter
+    (<code>^^^GLU\^^^K</code>); others send one O record per test. A LIS must read both.</li>
+  <li class="note-conv">H-5 sender name as <code>name^version^serial</code>, which identifies the instrument and its
+    software release.</li>
+  <li class="note-issue">Delimiters hard-coded instead of read from H; free text (comments, names) with an unescaped
+    <code>|</code> or <code>^</code>, which shifts all following fields.</li>
+  <li class="note-issue">Sequence numbers that never restart, or count records of all types together.</li>
+  <li class="note-issue">8-bit text (Latin-1, a code page, or UTF-8) without saying so, especially in patient names.</li>
+  <li class="note-issue">Times with separators (<code>2026-10-26 09:42</code>) or without seconds; times in UTC on one
+    side and local time on the other.</li>
+  <li class="note-issue">Vendor manuals that number fields differently: from 0, or with the field delimiter in H counted
+    as a field. Check one example message against the manual's numbering before mapping fields.</li>
+  <li class="note-issue">Values that are not numbers in a numeric test: <code>&lt;0.5</code>, <code>&gt;500</code>,
+    <code>***</code>, an error text. Comparisons and statistics must handle them.
+    <span class="note-ref">watches compare with &lt; or &gt; only against numeric values.</span></li>
+</ul>
+
+<h2 id="workflows">Workflows</h2>
+<table class="results">
+  <thead><tr><th>Mode</th><th>Messages</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><b>Unidirectional / unsolicited</b></td><td>instrument &rarr; LIS: H P O R L</td>
+      <td>Tests are chosen at the instrument; the LIS matches results to its own orders by specimen ID and test, or
+        stores them without an order.
+        <span class="note-ref">LIS session setting "results without an order": accept, keep for review, ignore.</span></td></tr>
+    <tr><td><b>Batch (download)</b></td><td>LIS &rarr; instrument: H P O L (O-26 = O, O-12 = N); later instrument &rarr; LIS: R</td>
+      <td>The LIS sends orders ahead; a cancellation is an O record with action code C.</td></tr>
+    <tr><td><b>Host query</b> (query mode)</td><td>instrument: H Q L; LIS: H P O L (O-26 = Q, L-3 = F) or "no order"; instrument: H P O R L</td>
+      <td>The instrument reads a barcode and asks. "No order" is answered with O-26 = Y (no order for this test/specimen),
+        Z (no record of this patient), or a message with only H and L (L-3 = I). Which one an instrument expects varies.
+        <span class="note-ref">LIS session setting "answer for a specimen without order".</span></td></tr>
+  </tbody>
+</table>
+<p class="muted">Host query is often called "bidirectional" or "query mode" in manuals; batch is called "download"
+  or "broadcast". Results going to the LIS are sometimes called "upload".</p>
+
+<h2 id="fields">Field reference</h2>
+<p>All fields of all record types from lisbench's record table, with the standard's codes where a field has a code
+  list and notes where interfaces commonly differ.</p>
+<div class="filter">
+  <label class="check">Filter <input id="filter" type="search" placeholder="e.g. specimen, R-9, flags"></label>
+  <label class="check"><input id="noted" type="checkbox"> only fields with notes</label>
+  <span class="legend muted"><span class="note-conv"></span><span class="note-issue"></span></span>
+</div>
+<div id="field-tables"><p class="muted">Loading the record table&hellip;</p></div>
+
+<h2 id="others">Related standards</h2>
+<table class="results">
+  <thead><tr><th></th><th>LIS01 / LIS02 (ASTM)</th><th>HL7 v2 (e.g. IHE LAW)</th><th>POCT1-A2</th></tr></thead>
+  <tbody>
+    <tr><td>Used for</td><td>Most analyzers, serial and TCP</td><td>Newer analyzers and middleware, LIS to hospital systems</td><td>Point-of-care devices and their data managers</td></tr>
+    <tr><td>Envelope</td><td>ENQ, frames with checksum, EOT</td><td>MLLP: VT &hellip; FS CR on TCP</td><td>XML messages over a device/data manager link</td></tr>
+    <tr><td>Structure</td><td>Records H P O R C Q L</td><td>Segments MSH PID SPM OBR ORC OBX &hellip;</td><td>XML elements</td></tr>
+    <tr><td>Application acknowledgement</td><td>None (only link-level ACK per frame)</td><td>ACK message with an acknowledgement code</td><td>Yes, in the conversation</td></tr>
+    <tr><td>Codes</td><td>Local test codes in component 4</td><td>Local codes, LOINC possible; profile defines more strictly</td><td>Vendor and LOINC</td></tr>
+  </tbody>
+</table>
+<p>IHE LAW (Laboratory Analytical Workflow) is an HL7 v2.5.1 profile designed for the instrument-to-LIS interface,
+  as a successor to the ASTM pair; CLSI took it up as AUTO16. HL7 v2's observation segments share their ancestry
+  with ASTM E1238, which is why OBR/OBX and O/R look alike.</p>
+
+<h2 id="terms">Terms</h2>
+<table class="results">
+  <thead><tr><th>Term</th><th>Meaning, and names seen for the same thing</th></tr></thead>
+  <tbody>
+    <tr><td>Computer system / host / LIS</td><td>The information system side of the link. LIS01 says "computer system"; manuals say "host" or "LIS"; middleware takes this role towards the instrument.</td></tr>
+    <tr><td>Instrument / analyzer</td><td>The measuring side ("clinical instrument").</td></tr>
+    <tr><td>Specimen / sample</td><td>The material in a tube, identified by the specimen ID (O-3), usually a barcode. "Sample ID" in manuals means the same.</td></tr>
+    <tr><td>Order / order item</td><td>Requested tests for a specimen; lisbench calls one test of an order an order item and tracks its state.</td></tr>
+    <tr><td>Transfer / session</td><td>One ENQ &hellip; EOT exchange; it carries usually one message.</td></tr>
+    <tr><td>Message</td><td>H &hellip; L.</td></tr>
+    <tr><td>Record / segment</td><td>One line of a message (ASTM: record; HL7: segment).</td></tr>
+    <tr><td>IUT, tester, test case, verdict</td><td>Conformance testing terms after ISO/IEC 9646, used by <code>lisbench conform</code>.</td></tr>
+  </tbody>
+</table>
+</main>
+<footer>lisbench knowledge page, 2026-10-26. Not the standards' text; see CLSI LIS01-A2 and LIS02-A2.</footer>
+<script type="module" src="/knowledge.js"></script>
+</body>
+</html>
