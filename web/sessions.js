@@ -76,10 +76,11 @@ async function api(path, body) {
   return data;
 }
 
-/** @param {unknown} e */
-function toast(e) {
+/** @param {unknown} e @param {boolean} [ok] a confirmation, not an error */
+function toast(e, ok = false) {
   const t = document.getElementById("toast");
   if (!(t instanceof HTMLElement)) return;
+  t.classList.toggle("ok", ok);
   t.textContent = e instanceof Error ? e.message : String(e);
   t.hidden = false;
   window.clearTimeout(Number(t.dataset.timer ?? 0));
@@ -100,6 +101,73 @@ function guarded(fn) {
 function select(name, options, value, labels = {}) {
   return h("select", { name }, ...options.map((o) =>
     h("option", { value: o, selected: o === value }, labels[o] ?? o)));
+}
+
+/**
+ * A field whose value has components (LIS02-A2: separated by the component
+ * delimiter ^). By default one box per component, so nobody has to type ^;
+ * "raw" switches to one box with the value as sent. The value is kept in a
+ * hidden input `name` for the form.
+ * @param {string} name
+ * @param {string[]} labels one per component
+ * @param {string} [value]
+ */
+function componentField(name, labels, value = "") {
+  const hidden = /** @type {HTMLInputElement} */ (h("input", { type: "hidden", name, value }));
+  const parts = labels.map((l, i) => /** @type {HTMLInputElement} */ (h("input", {
+    "aria-label": l, placeholder: l, value: value.split("^")[i] ?? "" })));
+  const raw = /** @type {HTMLInputElement} */ (h("input", { "aria-label": `${name} as sent`, value,
+    placeholder: labels.join("^"), hidden: true }));
+  const boxes = h("span", { class: "components" }, ...parts);
+  const toggle = /** @type {HTMLButtonElement} */ (h("button", { type: "button", class: "small",
+    title: "edit as one text with ^ between the components" }, "raw"));
+  const sync = () => {
+    const rawMode = !raw.hidden;
+    for (const p of parts) {
+      p.setCustomValidity(/[|\\^&]/.test(p.value) ? "one component: | \\ ^ & are not allowed here; use raw for ^" : "");
+    }
+    raw.setCustomValidity(/[|\\&]/.test(raw.value) ? "| \\ & are not allowed" : "");
+    hidden.value = rawMode ? raw.value.trim()
+      : parts.map((p) => p.value.trim()).join("^").replace(/\^+$/, "");
+  };
+  for (const p of [...parts, raw]) p.addEventListener("input", sync);
+  toggle.addEventListener("click", () => {
+    sync();
+    const toRaw = raw.hidden;
+    if (toRaw) raw.value = hidden.value;
+    else parts.forEach((p, i) => { p.value = hidden.value.split("^")[i] ?? ""; });
+    raw.hidden = !toRaw;
+    boxes.hidden = toRaw;
+    toggle.textContent = toRaw ? "boxes" : "raw";
+    toggle.title = toRaw ? "one box per component" : "edit as one text with ^ between the components";
+    sync();
+  });
+  return h("span", { class: "component-field" }, hidden, boxes, raw, toggle);
+}
+
+/**
+ * Shows at most `rows` rows of the table and scrolls the rest, with the
+ * header kept in view. Follows the table's size, also when its tab opens.
+ * @param {HTMLTableElement | HTMLElement} table
+ * @param {number} [rows]
+ * @param {boolean} [stickToEnd] keep the newest (last) rows in view
+ */
+function scrollRows(table, rows = 5, stickToEnd = false) {
+  const box = h("div", { class: "scroll-rows" }, table);
+  const fit = () => {
+    const body = Array.from(table.querySelectorAll("tbody > tr"));
+    if (body.length <= rows) {
+      box.style.maxHeight = "";
+      return;
+    }
+    const head = table.querySelector("thead");
+    const height = (head instanceof HTMLElement ? head.offsetHeight : 0) +
+      body.slice(0, rows).reduce((sum, r) => sum + (r instanceof HTMLElement ? r.offsetHeight : 0), 0);
+    if (height > 0) box.style.maxHeight = `${height + 2}px`;
+    if (stickToEnd) box.scrollTop = box.scrollHeight;
+  };
+  new ResizeObserver(fit).observe(table);
+  return box;
 }
 
 /**
@@ -183,7 +251,7 @@ function setupNav() {
     if (!(b instanceof HTMLButtonElement)) continue;
     b.addEventListener("click", () => {
       show(b.dataset.view ?? "home");
-      if (b.dataset.view === "catalog") renderCatalog();
+      if (b.dataset.view === "catalog" && !catalogDirty) renderCatalog();
     });
   }
 }
@@ -588,7 +656,8 @@ function lisView(session, body) {
     h("div", { class: "grid" },
       h("label", {}, "Specimen ID", h("input", { name: "id", required: true, placeholder: "e.g. S-00001" })),
       h("label", {}, "Patient ID", h("input", { name: "patient_id" })),
-      h("label", {}, "Patient name", h("input", { name: "patient_name", placeholder: "Last^First" }))),
+      h("label", { class: "wide" }, "Patient name (P-6)",
+        componentField("patient_name", ["Last", "First", "Middle", "Suffix", "Title"]))),
     h("fieldset", {}, h("legend", {}, "Tests"), tests.el),
     h("div", { class: "actions" }, h("button", { type: "submit", class: "primary" }, "Add to the order book")));
   addForm.addEventListener("submit", (ev) => {
@@ -596,7 +665,7 @@ function lisView(session, body) {
     api("/api/lis/specimen", { session, id: input(addForm, "id").value.trim(),
       patient_id: input(addForm, "patient_id").value.trim(), patient_name: input(addForm, "patient_name").value.trim(),
       tests: tests.get() })
-      .then(() => { input(addForm, "id").value = ""; }).catch(toast);
+      .then(() => { input(addForm, "id").value = ""; }).catch((e) => toast(e));
   });
   const table = h("table", { class: "results" });
   // Two clicks, so that one slip does not lose a recorded scenario.
@@ -617,7 +686,7 @@ function lisView(session, body) {
     clear),
     h("p", { class: "muted" }, "Specimens and tests the instrument sends or asks for are added here; " +
       "add or remove tests to build a scenario."),
-    table);
+    scrollRows(table));
 
   /** @param {string} specimen @param {string} test @param {string} label @param {string} path */
   const itemButton = (specimen, test, label, path) => h("button", { type: "button", class: "small",
@@ -669,7 +738,7 @@ function lisView(session, body) {
  */
 function deviceView(body) {
   const table = h("table", { class: "results" });
-  body.append(h("h3", {}, "Specimens (most recent last)"), table);
+  body.append(h("h3", {}, "Specimens (most recent last)"), scrollRows(table, 5, true));
   /** @param {{specimens: DevSpecimen[]}} state */
   return (state) => {
     table.replaceChildren(h("thead", {}, h("tr", {}, ...["Specimen", "State", "Tests", "Results", "Note"].map((t) => h("th", {}, t)))));
@@ -684,6 +753,16 @@ function deviceView(body) {
 }
 
 // --- catalogue -----------------------------------------------------------------------
+
+/** Edits not saved yet: kept when the user looks at another tab and comes back. */
+let catalogDirty = false;
+
+/** @param {boolean} dirty */
+function setCatalogDirty(dirty) {
+  catalogDirty = dirty;
+  const note = document.getElementById("catalog-unsaved");
+  if (note) note.hidden = !dirty;
+}
 
 function renderCatalog() {
   const table = document.getElementById("catalog");
@@ -704,9 +783,60 @@ function renderCatalog() {
       h("td", {}, num("sim_low", t.simulate?.low)), h("td", {}, num("sim_high", t.simulate?.high)),
       h("td", {}, h("input", { name: "values", value: t.values.join(", "), placeholder: "POS, NEG" })),
       h("td", {}, h("input", { name: "abnormal", value: t.abnormal.join(", "), placeholder: "POS" })),
-      h("td", {}, h("button", { type: "button", class: "small", onclick: () => { catalog.splice(index, 1); renderCatalog(); } }, "Delete"))));
+      h("td", {}, h("button", { type: "button", class: "small", onclick: () => {
+        catalog = readCatalog();  // keep what was typed in the other rows
+        catalog.splice(index, 1);
+        renderCatalog();
+        setCatalogDirty(true);
+      } }, "Delete"))));
   });
   table.append(tb);
+}
+
+/**
+ * Checks the rows as the server will, and marks the first field in error so
+ * that the browser points at it. Returns the problems, one per line.
+ */
+function checkCatalog() {
+  /** @type {string[]} */
+  const problems = [];
+  /** @type {HTMLInputElement | HTMLSelectElement | null} */
+  let first = null;
+  const codes = new Set();
+  Array.from(document.querySelectorAll("#catalog tbody tr")).forEach((row, i) => {
+    const r = /** @type {HTMLElement} */ (row);
+    const field = (/** @type {string} */ n) => /** @type {HTMLInputElement} */ (input(r, n));
+    for (const n of ["code", "low", "high", "sim_low", "sim_high", "values", "abnormal", "decimals"]) field(n).setCustomValidity("");
+    const code = field("code").value.trim();
+    const label = `Test ${i + 1}${code ? ` (${code})` : ""}`;
+    /** @param {string} n @param {string} text */
+    const bad = (n, text) => {
+      field(n).setCustomValidity(text);
+      first ??= field(n);
+      problems.push(`${label}: ${text}`);
+    };
+    const num = (/** @type {string} */ n) => (field(n).value.trim() === "" ? undefined : Number(field(n).value));
+    const list = (/** @type {string} */ n) => field(n).value.split(",").map((x) => x.trim()).filter((x) => x !== "");
+    if (code === "") bad("code", "a test needs a code");
+    else if (/[|\\^&]/.test(code)) bad("code", "a code must not contain | \\ ^ &");
+    else if (codes.has(code)) bad("code", `code ${code} appears twice`);
+    codes.add(code);
+    const low = num("low");
+    const high = num("high");
+    if (low !== undefined && high !== undefined && low > high) bad("low", "reference low is above high");
+    const sl = num("sim_low");
+    const sh = num("sim_high");
+    if ((sl === undefined) !== (sh === undefined)) bad(sl === undefined ? "sim_low" : "sim_high", "simulate needs both low and high");
+    else if (sl !== undefined && sh !== undefined && sl > sh) bad("sim_low", "simulate low is above high");
+    const decimals = num("decimals") ?? 0;
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 6) bad("decimals", "decimals is 0 to 6");
+    const values = list("values");
+    if (input(r, "kind").value === "qualitative" && values.length === 0) bad("values", "a qualitative test needs values, e.g. POS, NEG");
+    const stray = list("abnormal").filter((a) => !values.includes(a));
+    if (stray.length > 0) bad("abnormal", `${stray.join(", ")} not among the values`);
+  });
+  /** @type {HTMLInputElement | HTMLSelectElement | null} */ (first)?.reportValidity();
+  return problems;
 }
 
 /** @returns {TestDef[]} */
@@ -731,18 +861,30 @@ function readCatalog() {
 }
 
 function setupCatalog() {
+  document.getElementById("catalog")?.addEventListener("input", () => setCatalogDirty(true));
+  document.getElementById("catalog")?.addEventListener("change", () => setCatalogDirty(true));
   document.getElementById("catalog-add")?.addEventListener("click", () => {
     catalog = readCatalog();
     catalog.push({ code: "", name: "", kind: "numeric", unit: "", decimals: 0, values: [], abnormal: [] });
     renderCatalog();
+    setCatalogDirty(true);
+    /** @type {HTMLInputElement | null} */ (document.querySelector("#catalog tbody tr:last-child input[name=code]"))?.focus();
   });
   document.getElementById("catalog-save")?.addEventListener("click", guarded(async () => {
-    const tests = readCatalog();
-    await api("/api/catalog/save", { lisbench: "catalog/1", tests });
+    const problems = checkCatalog();
+    if (problems.length > 0) {
+      toast(`Not saved. ${problems.join("; ")}`);
+      return;
+    }
+    await api("/api/catalog/save", { lisbench: "catalog/1", tests: readCatalog() });
     catalog = (await api("/api/catalog")).tests;
     renderCatalog();
-    toast("Catalogue saved.");
+    setCatalogDirty(false);
+    toast("Catalogue saved.", true);
   }));
+  window.addEventListener("beforeunload", (ev) => {
+    if (catalogDirty) ev.preventDefault();  // the browser asks before the edits are lost
+  });
 }
 
 // --- live events ------------------------------------------------------------------------

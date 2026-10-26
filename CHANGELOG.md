@@ -12,6 +12,14 @@
   (state files with the old list are read). Tests are added per specimen
   from a catalogue choice and removed with one click; "Clear order book"
   (two clicks) empties it. The priority column and field are gone.
+- Test catalogue: checked before saving, with the field in error marked
+  and the test named (also in the server's messages, which said only
+  "line 1" for the web UI); unsaved edits survive switching tabs and
+  deleting another row (they were lost before); "unsaved changes" shown,
+  and the browser asks before leaving with them. Confirmations are green.
+- Web UI: fields with components (patient name P-6) get one box per
+  component, so nobody types ^; "raw" edits the value as sent.
+- Web UI: specimen tables show five rows and scroll, header kept in view.
 - Web UI: knowledge page (`/knowledge.html`, "Knowledge" in the top bar):
   which ASTM and CLSI standard is which, LIS01-A2 link rules with the
   conformance cases that check them, LIS02-A2 structure, workflows, related

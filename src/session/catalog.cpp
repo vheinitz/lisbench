@@ -19,6 +19,64 @@ const TestDef* Catalog::find(std::string_view code) const noexcept {
     return it == tests.end() ? nullptr : &*it;
 }
 
+namespace {
+
+TestDef parse_test(const YAML::Node& t, std::set<std::string>& codes) {
+    only_keys(t, "a test",
+              {"code", "name", "kind", "unit", "reference", "decimals", "simulate", "values",
+               "abnormal"});
+    TestDef d;
+    d.code = required<std::string>(t, "code");
+    if (d.code.empty() || d.code.find_first_of("|^\\&\r\n") != std::string::npos) {
+        fail(t["code"], "a test code must not be empty or contain delimiters");
+    }
+    if (!codes.insert(d.code).second) {
+        fail(t["code"], std::format("test code '{}' appears twice", d.code));
+    }
+    d.name = get<std::string>(t, "name", d.code);
+    d.kind =
+        choice(t, "kind", TestDef::Kind::numeric,
+               {{"numeric", TestDef::Kind::numeric}, {"qualitative", TestDef::Kind::qualitative}});
+    d.unit = get<std::string>(t, "unit", "");
+    d.decimals = get<int>(t, "decimals", 0);
+    if (d.decimals < 0 || d.decimals > 6) {
+        fail(t["decimals"], "decimals is 0..6");
+    }
+    if (const auto r = t["reference"]) {
+        only_keys(r, "reference", {"low", "high"});
+        if (r["low"]) {
+            d.low = get<double>(r, "low", 0);
+        }
+        if (r["high"]) {
+            d.high = get<double>(r, "high", 0);
+        }
+        if (d.low && d.high && *d.low > *d.high) {
+            fail(r, "reference: low is above high");
+        }
+    }
+    if (const auto s = t["simulate"]) {
+        only_keys(s, "simulate", {"low", "high"});
+        d.simulate_low = required<double>(s, "low");
+        d.simulate_high = required<double>(s, "high");
+        if (*d.simulate_low > *d.simulate_high) {
+            fail(s, "simulate: low is above high");
+        }
+    }
+    d.values = get<std::vector<std::string>>(t, "values", {});
+    d.abnormal = get<std::vector<std::string>>(t, "abnormal", {});
+    if (d.kind == TestDef::Kind::qualitative && d.values.empty()) {
+        fail(t, std::format("qualitative test '{}' needs values", d.code));
+    }
+    for (const auto& a : d.abnormal) {
+        if (std::ranges::find(d.values, a) == d.values.end()) {
+            fail(t["abnormal"], std::format("'{}' is not one of the values", a));
+        }
+    }
+    return d;
+}
+
+}  // namespace
+
 std::expected<Catalog, std::string> parse_catalog(std::string_view yaml) {
     try {
         const auto root = YAML::Load(std::string{yaml});
@@ -28,58 +86,21 @@ std::expected<Catalog, std::string> parse_catalog(std::string_view yaml) {
         }
         Catalog c;
         std::set<std::string> codes;
+        std::size_t number = 0;
         for (const auto& t : root["tests"]) {
-            only_keys(t, "a test",
-                      {"code", "name", "kind", "unit", "reference", "decimals", "simulate",
-                       "values", "abnormal"});
-            TestDef d;
-            d.code = required<std::string>(t, "code");
-            if (d.code.empty() || d.code.find_first_of("|^\\&\r\n") != std::string::npos) {
-                fail(t["code"], "a test code must not be empty or contain delimiters");
+            ++number;
+            // Line numbers say little for the web UI's one-line JSON: name the test too.
+            const auto which = [&] {
+                const auto code = t.IsMap() && t["code"] ? t["code"].as<std::string>("") : "";
+                return std::format(" (test {}{}{})", number, code.empty() ? "" : ", ", code);
+            };
+            try {
+                c.tests.push_back(parse_test(t, codes));
+            } catch (const FileError& e) {
+                throw FileError{e.what() + which()};
+            } catch (const YAML::Exception& e) {
+                throw FileError{std::format("line {}: {}{}", e.mark.line + 1, e.msg, which())};
             }
-            if (!codes.insert(d.code).second) {
-                fail(t["code"], std::format("test code '{}' appears twice", d.code));
-            }
-            d.name = get<std::string>(t, "name", d.code);
-            d.kind = choice(
-                t, "kind", TestDef::Kind::numeric,
-                {{"numeric", TestDef::Kind::numeric}, {"qualitative", TestDef::Kind::qualitative}});
-            d.unit = get<std::string>(t, "unit", "");
-            d.decimals = get<int>(t, "decimals", 0);
-            if (d.decimals < 0 || d.decimals > 6) {
-                fail(t["decimals"], "decimals is 0..6");
-            }
-            if (const auto r = t["reference"]) {
-                only_keys(r, "reference", {"low", "high"});
-                if (r["low"]) {
-                    d.low = get<double>(r, "low", 0);
-                }
-                if (r["high"]) {
-                    d.high = get<double>(r, "high", 0);
-                }
-                if (d.low && d.high && *d.low > *d.high) {
-                    fail(r, "reference: low is above high");
-                }
-            }
-            if (const auto s = t["simulate"]) {
-                only_keys(s, "simulate", {"low", "high"});
-                d.simulate_low = required<double>(s, "low");
-                d.simulate_high = required<double>(s, "high");
-                if (*d.simulate_low > *d.simulate_high) {
-                    fail(s, "simulate: low is above high");
-                }
-            }
-            d.values = get<std::vector<std::string>>(t, "values", {});
-            d.abnormal = get<std::vector<std::string>>(t, "abnormal", {});
-            if (d.kind == TestDef::Kind::qualitative && d.values.empty()) {
-                fail(t, std::format("qualitative test '{}' needs values", d.code));
-            }
-            for (const auto& a : d.abnormal) {
-                if (std::ranges::find(d.values, a) == d.values.end()) {
-                    fail(t["abnormal"], std::format("'{}' is not one of the values", a));
-                }
-            }
-            c.tests.push_back(std::move(d));
         }
         return c;
     } catch (const FileError& e) {

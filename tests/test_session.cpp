@@ -71,6 +71,13 @@ TEST_CASE("catalogue: read, checked, written back, flags") {
     const auto err = parse_catalog("lisbench: catalog/1\ntests:\n  - code: A\n    colour: red\n");
     REQUIRE_FALSE(err);
     CHECK(err.error().starts_with("line 4: unknown key 'colour'"));
+
+    // From the web UI the catalogue comes as one line of JSON: the message names the test.
+    const auto one_line = parse_catalog(
+        R"({"lisbench": "catalog/1", "tests": [{"code": "A"}, {"code": "B", "simulate": {"low": 1}}]})");
+    REQUIRE_FALSE(one_line);
+    CHECK(one_line.error().contains("(test 2, B)"));
+    CHECK(one_line.error().contains("high"));
 }
 
 TEST_CASE("session file: typed, checked, without URIs, written back") {
