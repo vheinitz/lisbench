@@ -247,7 +247,8 @@ type: device                    # lis | device | gateway (9.10) | monitor | expo
 profile: cepheid-genexpert      # optional instrument profile
 timing: lis01-a2                # lis01-a2 | fast-test
 links:
-  - role: main                  # device: main; lis: main, or orders + results
+  - role: main                  # device: main; lis: main, or orders + results;
+                                # gateway: instrument + lis
     transport: serial           # serial | tcp-server | tcp-client
     low_level: lis01-a2         # lis01-a2 | none | mllp (9.10)
     serial: {port: /dev/ttyUSB1, baud: 9600, data_bits: 8, parity: none,
@@ -412,5 +413,16 @@ incomplete after the receive timeout. LIS01-A2 control characters on such a
 link are dropped and reported once per message (the partner probably uses
 LIS01-A2). Fault injection and the conformance test need LIS01-A2. A
 monitor or bridge passes bytes on unchanged, so both sides must use the
-same; converting between them is the gateway session type (planned next:
-whole messages are forwarded between a LIS01-A2 link and one without).
+same; converting between them is the gateway.
+
+**Gateway** (session type `gateway`, links `instrument` and `lis`): forwards
+whole messages both ways, records unchanged; each side has its own
+transport and low-level protocol. Towards the instrument lisbench plays the
+computer system, towards the LIS the instrument (LIS01-A2 roles,
+contention). Strict, nothing stored (decided 2026-10-26: "ja strenge
+Variante"): while one side is not connected, a LIS01-A2 side answers ENQ
+with NAK, so the sender keeps its message and tries again; a side without
+LIS01-A2 cannot refuse, and what it sends then is dropped and reported. An
+incomplete message is not forwarded. Not covered: a LIS01-A2 sender has its
+frames acknowledged before the other side has the message, so a failed
+delivery there is reported, not undone.

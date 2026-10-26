@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Gateway (new session type): forwards whole messages between an
+  instrument side and a LIS side that differ in transport and low-level
+  protocol, e.g. a serial instrument with LIS01-A2 and a LIS on TCP
+  without it. Strict, nothing stored: while one side is down, a LIS01-A2
+  side answers ENQ with NAK so the sender keeps its message; a side without
+  LIS01-A2 cannot refuse, so its messages are dropped and reported. "New
+  gateway" in the web UI, with counts per direction.
+- Fix: a `tcp-client` link whose partner was not listening yet stayed in
+  "connecting" until the session was stopped (a refused connect did not
+  end the wait). It now retries every 5 s as intended.
 - Links without LIS01-A2: every link chooses its low-level protocol,
   `lis01-a2` (default), `none` (records with CR, the message ends with its
   L record) or `mllp` (HL7 MLLP block VT ... FS CR). In session files as
