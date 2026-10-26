@@ -233,8 +233,11 @@ void Session::dispatch(const lis01::Events& events) {
                            notify();
                        },
                        [this](const lis01::ev::Warning& w) {
-                           if (handlers_.on_warning) {
-                               handlers_.on_warning(w.text);
+                           const auto& handler = w.kind == lis01::ev::Warning::Kind::start_noise
+                                                     ? handlers_.on_note
+                                                     : handlers_.on_warning;
+                           if (handler) {
+                               handler(w.text);
                            }
                        },
                    },

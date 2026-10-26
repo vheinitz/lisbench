@@ -12,6 +12,10 @@
   (state files with the old list are read). Tests are added per specimen
   from a catalogue choice and removed with one click; "Clear order book"
   (two clicks) empties it. The priority column and field are gone.
+- Link: bytes outside a transfer are dropped until the next ENQ and
+  reported as one line with their count and first bytes, instead of one
+  warning per byte. Before the first ENQ after the port opened (the tail of
+  what the partner was sending) this is a note, not a warning.
 - Test catalogue: checked before saving, with the field in error marked
   and the test named (also in the server's messages, which said only
   "line 1" for the web UI); unsaved edits survive switching tabs and

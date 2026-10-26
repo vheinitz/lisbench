@@ -423,6 +423,61 @@ TEST_CASE("disconnect ends the running transfer; queued messages wait for resume
     CHECK(sent(ev) == bytes{ctl::eot, ctl::enq, ctl::eot});
 }
 
+TEST_CASE("neutral: bytes before ENQ are dropped and reported once, not per byte") {
+    // Seen on a serial port opened while the instrument was in the middle of
+    // a transfer: the rest of its frame arrives before anything valid.
+    const auto noise = to_bytes(
+        "\x02"
+        "1H|\\^&|||uno");
+    Link link{Role::computer};
+    Events ev;
+    link.on_bytes(noise, ev);
+    CHECK(ev.empty());  // nothing answered, nothing logged yet
+
+    // The first ENQ synchronises: one note about what came before, then the transfer.
+    feed(link, ctl::enq, ev);
+    CHECK(sent(ev) == bytes{ctl::ack});
+    auto notes = all<ev::Warning>(ev);
+    REQUIRE(notes.size() == 1);
+    CHECK(notes[0].kind == ev::Warning::Kind::start_noise);
+    CHECK(notes[0].text.contains("13 bytes"));
+    CHECK(notes[0].text.contains("02 31 48 7C"));
+    for (const auto& f : frames_for(message_of({"H|\\^&", "L|1|N"}))) {
+        link.on_bytes(encode(f), ev);
+    }
+    feed(link, ctl::eot, ev);
+    REQUIRE(link.state() == State::neutral);
+
+    // Later, between transfers, the same is a deviation: one warning for the burst.
+    ev.clear();
+    link.on_bytes(noise, ev);
+    CHECK(ev.empty());
+    feed(link, ctl::enq, ev);
+    notes = all<ev::Warning>(ev);
+    REQUIRE(notes.size() == 1);
+    CHECK(notes[0].kind == ev::Warning::Kind::deviation);
+    CHECK(notes[0].text.contains("13 bytes outside a transfer"));
+
+    // A reconnect (port opened again) starts over.
+    link.on_disconnect(ev);
+    link.resume(ev);
+    ev.clear();
+    link.on_bytes(noise, ev);
+    feed(link, ctl::enq, ev);
+    CHECK(all<ev::Warning>(ev).at(0).kind == ev::Warning::Kind::start_noise);
+}
+
+TEST_CASE("neutral: bytes not followed by ENQ are reported when the link sends or times out") {
+    Link link{Role::computer};
+    Events ev;
+    link.on_bytes(to_bytes("garbage"), ev);
+    CHECK(ev.empty());
+    (void)link.submit(message_of({"H|\\^&", "L|1|N"}), ev);
+    REQUIRE(all<ev::Warning>(ev).size() == 1);
+    CHECK(all<ev::Warning>(ev)[0].text.contains("7 bytes"));
+    CHECK(sent(ev) == bytes{ctl::enq});
+}
+
 TEST_CASE("receiver: checks, duplicates and timeouts") {
     Link link{Role::computer};
     Events ev;

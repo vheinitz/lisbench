@@ -98,7 +98,12 @@ struct ReceiveFinished {
 };
 // Protocol deviation worth logging; the link continues.
 struct Warning {
+    enum class Kind : std::uint8_t {
+        deviation,    // the partner broke a rule
+        start_noise,  // bytes before the first ENQ after (re)connecting: dropped, a note only
+    };
     std::string text{};
+    Kind kind{Kind::deviation};
 };
 }  // namespace ev
 
@@ -165,6 +170,8 @@ private:
     void send_current_frame(Events& out);
     void finish(Outcome outcome, Events& out);
     void end_receive(bool complete, std::string reason, Events& out);
+    void noise(std::byte b);
+    void report_noise(Events& out);
     void arm(milliseconds after, Events& out);
     void disarm(Events& out);
     static void send(std::byte b, Events& out);
@@ -175,6 +182,14 @@ private:
     bool connected_{true};
     bool receiver_ready_{true};
     bool holdoff_{false};  // computer after contention
+
+    // Bytes outside a transfer are dropped until the next ENQ (or reply to
+    // ours) and reported as one warning. Before the first one after
+    // connecting they are the tail of whatever the partner was sending when
+    // the port opened: a note, not a deviation.
+    bool synced_{false};
+    bytes noise_{};  // the first bytes, for the report
+    std::size_t noise_count_{0};
 
     std::deque<Outgoing> queue_{};
     std::optional<Outgoing> current_{};

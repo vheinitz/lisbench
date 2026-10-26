@@ -49,6 +49,8 @@ struct SessionHandlers {
     std::function<void(const WireEvent&)> on_wire;
     std::function<void(const Transfer&)> on_transfer;
     std::function<void(const std::string&)> on_warning;
+    // Bytes dropped before the first ENQ after the port opened (optional).
+    std::function<void(const std::string&)> on_note;
 };
 
 struct SessionOptions {

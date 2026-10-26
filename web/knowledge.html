@@ -171,6 +171,11 @@
     Query answers have to come from a fast lookup, not from a slow report.</li>
   <li class="note-issue">An instrument that resets when the serial port is opened (common with USB adapters and
     microcontroller boards), and sends nothing for some seconds.</li>
+  <li class="note-issue">A port opened while the partner is in the middle of a transfer: the rest of its frame arrives
+    first. Outside a transfer only ENQ starts something, so a receiver drops everything before the next ENQ; STX is
+    not a point to synchronise on, a frame is valid only after ENQ and ACK.
+    <span class="note-ref">bytes before the first ENQ after opening are dropped and noted once; later bytes outside
+    a transfer give one warning per burst.</span></li>
 </ul>
 
 <h2 id="lis02">LIS02-A2: the message</h2>

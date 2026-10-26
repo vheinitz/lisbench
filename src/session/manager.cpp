@@ -146,6 +146,7 @@ public:
 
     void on_transfer(OnTransfer f) { on_transfer_ = std::move(f); }
     void on_warning(std::function<void(const std::string&)> f) { on_warning_ = std::move(f); }
+    void on_note(std::function<void(const std::string&)> f) { on_note_ = std::move(f); }
 
     [[nodiscard]] const LinkStatus& status() const noexcept { return status_; }
     [[nodiscard]] bool connected() const noexcept { return session_ != nullptr; }
@@ -195,6 +196,11 @@ public:
                 handlers.on_warning = [this](const std::string& w) {
                     if (on_warning_) {
                         on_warning_(w);
+                    }
+                };
+                handlers.on_note = [this](const std::string& w) {
+                    if (on_note_) {
+                        on_note_(w);
                     }
                 };
                 session_ = std::make_shared<io::Session>(std::move(*stream), options_, handlers);
@@ -271,6 +277,7 @@ private:
     std::function<void()> changed_;
     OnTransfer on_transfer_{};
     std::function<void(const std::string&)> on_warning_{};
+    std::function<void(const std::string&)> on_note_{};
     std::optional<asio::ip::tcp::acceptor> acceptor_{};
     std::shared_ptr<io::Session> session_{};
     LinkStatus status_{};
@@ -451,6 +458,7 @@ public:
             auto* raw = l.get();
             l->on_transfer([this, raw](const io::Transfer& t) { received(*raw, t); });
             l->on_warning([this](const std::string& w) { log("link: " + w); });
+            l->on_note([this](const std::string& w) { log(w); });
         }
     }
 
@@ -539,6 +547,7 @@ public:
             wake();
         });
         l.on_warning([this](const std::string& w) { log("link: " + w); });
+        l.on_note([this](const std::string& w) { log(w); });
     }
 
     [[nodiscard]] json state() const override {

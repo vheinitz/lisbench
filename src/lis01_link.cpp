@@ -79,10 +79,43 @@ void Link::disarm(Events& out) {
     }
 }
 
+void Link::noise(std::byte b) {
+    if (noise_.size() < 16) {
+        noise_.push_back(b);
+    }
+    ++noise_count_;
+}
+
+void Link::report_noise(Events& out) {
+    if (noise_count_ == 0) {
+        return;
+    }
+    std::string hex;
+    for (const auto b : noise_) {
+        hex += std::format("{}{:02X}", hex.empty() ? "" : " ", std::to_integer<unsigned>(b));
+    }
+    if (noise_count_ > noise_.size()) {
+        hex += " ...";
+    }
+    if (synced_) {
+        out.emplace_back(ev::Warning{
+            .text = std::format("{} bytes outside a transfer ignored: {}", noise_count_, hex)});
+    } else {
+        out.emplace_back(
+            ev::Warning{.text = std::format("{} bytes before the first ENQ after connecting "
+                                            "discarded: {}",
+                                            noise_count_, hex),
+                        .kind = ev::Warning::Kind::start_noise});
+    }
+    noise_.clear();
+    noise_count_ = 0;
+}
+
 void Link::kick(Events& out) {
     if (state_ != State::neutral || !connected_ || holdoff_ || current_ || queue_.empty()) {
         return;
     }
+    report_noise(out);
     current_ = std::move(queue_.front());
     queue_.pop_front();
     send(ctl::enq, out);
@@ -124,7 +157,8 @@ void Link::finish(Outcome outcome, Events& out) {
 
 void Link::end_receive(bool complete, std::string reason, Events& out) {
     if (!record_buf_.empty() || !frame_buf_.empty()) {
-        out.emplace_back(ev::Warning{"transfer ended inside a record; partial record discarded"});
+        out.emplace_back(
+            ev::Warning{.text = "transfer ended inside a record; partial record discarded"});
     }
     frame_buf_.clear();
     record_buf_.clear();
@@ -142,6 +176,8 @@ void Link::on_byte(std::byte b, Events& out) {
         case State::busy_wait:
         case State::contention_wait:
             if (b == ctl::enq) {
+                report_noise(out);
+                synced_ = true;
                 // A pending retry yields to the remote side's request.
                 if (!receiver_ready_) {
                     send(ctl::nak, out);
@@ -162,13 +198,15 @@ void Link::on_byte(std::byte b, Events& out) {
                 return;
             }
             if (b != ctl::eot) {
-                out.emplace_back(
-                    ev::Warning{std::format("unexpected byte 0x{:02X} in state {}",
-                                            std::to_integer<unsigned>(b), to_string(state_))});
+                noise(b);
             }
             return;
 
         case State::establishing:
+            if (b == ctl::ack || b == ctl::nak || b == ctl::enq) {
+                report_noise(out);
+                synced_ = true;
+            }
             if (b == ctl::ack) {
                 active().attempts = 0;
                 send_current_frame(out);
@@ -188,9 +226,7 @@ void Link::on_byte(std::byte b, Events& out) {
                     arm(timing_.contention_instrument, out);
                 }
             } else {
-                out.emplace_back(
-                    ev::Warning{std::format("unexpected byte 0x{:02X} while waiting for ENQ reply",
-                                            std::to_integer<unsigned>(b))});
+                noise(b);
             }
             return;
 
@@ -220,8 +256,8 @@ void Link::on_byte(std::byte b, Events& out) {
                 }
             } else {
                 out.emplace_back(ev::Warning{
-                    std::format("unexpected byte 0x{:02X} while waiting for frame reply",
-                                std::to_integer<unsigned>(b))});
+                    .text = std::format("unexpected byte 0x{:02X} while waiting for frame reply",
+                                        std::to_integer<unsigned>(b))});
             }
             return;
         }
@@ -240,14 +276,15 @@ void Link::on_byte_receiving(std::byte b, Events& out) {
             send(ctl::ack, out);
             arm(timing_.receive_timeout, out);
         } else {
-            out.emplace_back(ev::Warning{std::format("unexpected byte 0x{:02X} between frames",
-                                                     std::to_integer<unsigned>(b))});
+            out.emplace_back(
+                ev::Warning{.text = std::format("unexpected byte 0x{:02X} between frames",
+                                                std::to_integer<unsigned>(b))});
         }
         return;
     }
 
     if (b == ctl::stx) {
-        out.emplace_back(ev::Warning{"STX inside a frame; previous bytes discarded"});
+        out.emplace_back(ev::Warning{.text = "STX inside a frame; previous bytes discarded"});
         frame_buf_.assign(1, b);
         terminator_at_.reset();
         return;
@@ -262,7 +299,7 @@ void Link::on_byte_receiving(std::byte b, Events& out) {
     }
     // A frame that never terminates must not grow without bound.
     if (frame_buf_.size() > timing_.max_text + frame_overhead) {
-        out.emplace_back(ev::Warning{"frame exceeds maximum size; rejected"});
+        out.emplace_back(ev::Warning{.text = "frame exceeds maximum size; rejected"});
         frame_buf_.clear();
         terminator_at_.reset();
         send(ctl::nak, out);
@@ -278,29 +315,29 @@ void Link::on_frame(Events& out) {
 
     if (!decoded) {
         out.emplace_back(
-            ev::Warning{std::format("frame rejected: {}", to_string(decoded.error()))});
+            ev::Warning{.text = std::format("frame rejected: {}", to_string(decoded.error()))});
         send(ctl::nak, out);
         return;
     }
     auto& frame = *decoded;
     if (const auto at = first_restricted(frame.text)) {
         out.emplace_back(
-            ev::Warning{std::format("frame rejected: restricted character 0x{:02X} in text",
-                                    std::to_integer<unsigned>(frame.text[*at]))});
+            ev::Warning{.text = std::format("frame rejected: restricted character 0x{:02X} in text",
+                                            std::to_integer<unsigned>(frame.text[*at]))});
         send(ctl::nak, out);
         return;
     }
     const auto previous = static_cast<std::uint8_t>((expected_fn_ + 7U) % 8U);
     if (frame.number == previous) {
         // Our ACK got lost and the sender repeated the frame.
-        out.emplace_back(
-            ev::Warning{std::format("duplicate frame {} acknowledged and dropped", frame.number)});
+        out.emplace_back(ev::Warning{
+            .text = std::format("duplicate frame {} acknowledged and dropped", frame.number)});
         send(ctl::ack, out);
         return;
     }
     if (frame.number != expected_fn_) {
-        out.emplace_back(ev::Warning{
-            std::format("frame number {} where {} was expected", frame.number, expected_fn_)});
+        out.emplace_back(ev::Warning{.text = std::format("frame number {} where {} was expected",
+                                                         frame.number, expected_fn_)});
         send(ctl::nak, out);
         return;
     }
@@ -313,7 +350,7 @@ void Link::on_frame(Events& out) {
         if (!record_buf_.empty() && record_buf_.back() == ctl::cr) {
             record_buf_.pop_back();
         } else {
-            out.emplace_back(ev::Warning{"record does not end with CR"});
+            out.emplace_back(ev::Warning{.text = "record does not end with CR"});
         }
         out.emplace_back(ev::RecordReceived{std::exchange(record_buf_, {})});
     }
@@ -324,6 +361,7 @@ void Link::on_timer(TimerId id, Events& out) {
         return;  // stale
     }
     armed_ = 0;
+    report_noise(out);
     switch (state_) {
         case State::establishing:
         case State::sending:
@@ -349,6 +387,8 @@ void Link::on_timer(TimerId id, Events& out) {
 }
 
 void Link::on_disconnect(Events& out) {
+    report_noise(out);
+    synced_ = false;
     connected_ = false;
     holdoff_ = false;
     if (state_ == State::receiving) {
@@ -360,6 +400,7 @@ void Link::on_disconnect(Events& out) {
 }
 
 void Link::resume(Events& out) {
+    synced_ = false;
     connected_ = true;
     kick(out);
 }
